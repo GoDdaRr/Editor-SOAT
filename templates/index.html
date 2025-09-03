@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor SOAT - Monto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .tipo-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .tipo-option {
+            background: #f8f9fa;
+            border: 3px solid #e9ecef;
+            border-radius: 15px;
+            padding: 25px 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tipo-option:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+            transform: translateY(-2px);
+        }
+
+        .tipo-option.selected {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .tipo-option input[type="radio"] {
+            display: none;
+        }
+
+        .tipo-option h3 {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+
+        .tipo-option p {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        input[type="file"], input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="file"]:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .monto-input {
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            width: 100%;
+            transition: all 0.3s ease;
+            margin: 10px 0;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            display: none;
+        }
+
+        .btn-download:hover {
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .loading {
+            display: none;
+            margin: 20px 0;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .resultado {
+            display: none;
+            margin-top: 25px;
+        }
+
+        .resultado img {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .file-info {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        .icon {
+            font-size: 1.5rem;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🚗 SOAT Editor</div>
+        <p class="subtitle">Agrega montos a tus documentos SOAT</p>
+        
+        <form id="procesarForm" enctype="multipart/form-data">
+            <!-- Selector de tipo de compañía -->
+            <div class="form-group">
+                <label>Selecciona el tipo de SOAT:</label>
+                <div class="tipo-selector">
+                    <div class="tipo-option" onclick="selectTipo('protecta')">
+                        <input type="radio" id="protecta" name="tipo_soat" value="protecta" required>
+                        <h3>🛡️ PROTECTA</h3>
+                        <p>Seguro Protecta</p>
+                    </div>
+                    <div class="tipo-option" onclick="selectTipo('positiva')">
+                        <input type="radio" id="positiva" name="tipo_soat" value="positiva" required>
+                        <h3>➕ POSITIVA</h3>
+                        <p>Seguro Positiva</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload de PDF -->
+            <div class="form-group">
+                <label for="pdf_file"><span class="icon">📄</span>Archivo PDF del SOAT:</label>
+                <input type="file" id="pdf_file" name="pdf_file" accept=".pdf" required>
+                <div class="file-info">Selecciona el archivo PDF que quieres editar</div>
+            </div>
+            
+            <!-- Campo de monto -->
+            <div class="form-group">
+                <label for="monto"><span class="icon">💰</span>Ingrese monto:</label>
+                <input type="text" id="monto" name="monto" class="monto-input" placeholder="Ej: 170.00" required pattern="[0-9]+(\.[0-9]{1,2})?" title="Solo números y decimales (ej: 170.00)">
+                <div class="file-info">Ingresa solo números (puede incluir decimales)</div>
+            </div>
+            
+            <!-- Botón de inicio -->
+            <button type="submit" id="submitBtn" class="btn">
+                <span class="icon">🚀</span>Procesar SOAT
+            </button>
+        </form>
+        
+        <!-- Loading -->
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <p>Procesando tu SOAT... Por favor espera</p>
+        </div>
+        
+        <!-- Mensajes -->
+        <div id="message-container"></div>
+        
+        <!-- Resultado y descarga -->
+        <div class="resultado" id="resultado">
+            <img id="imagen-resultado" src="" alt="SOAT procesado">
+            <button type="button" class="btn btn-download" id="btnDescargar" onclick="descargarResultado()">
+                <span class="icon">💾</span>Descargar SOAT Editado
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function selectTipo(tipo) {
+            // Remover selección previa
+            document.querySelectorAll('.tipo-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            
+            // Seleccionar nuevo tipo
+            document.getElementById(tipo).checked = true;
+            event.target.closest('.tipo-option').classList.add('selected');
+        }
+
+        // Validación del campo monto en tiempo real
+        document.getElementById('monto').addEventListener('input', function(e) {
+            let valor = e.target.value;
+            // Remover caracteres que no sean números, puntos o comas
+            valor = valor.replace(/[^0-9.,]/g, '');
+            // Reemplazar comas por puntos
+            valor = valor.replace(',', '.');
+            // Asegurar solo un punto decimal
+            const partes = valor.split('.');
+            if (partes.length > 2) {
+                valor = partes[0] + '.' + partes.slice(1).join('');
+            }
+            e.target.value = valor;
+        });
+
+        // Validación de archivo PDF
+        document.getElementById('pdf_file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && !file.type.includes('pdf')) {
+                alert('⚠️ Por favor, selecciona un archivo PDF válido');
+                this.value = '';
+            }
+        });
+
+        // Envío del formulario
+        document.getElementById('procesarForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const loading = document.getElementById('loading');
+            const resultado = document.getElementById('resultado');
+            const messageContainer = document.getElementById('message-container');
+            const submitBtn = document.getElementById('submitBtn');
+            const btnDescargar = document.getElementById('btnDescargar');
+            
+            // Limpiar mensajes previos
+            messageContainer.innerHTML = '';
+            resultado.style.display = 'none';
+            btnDescargar.style.display = 'none';
+            loading.style.display = 'block';
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="icon">⏳</span>Procesando...';
+            
+            try {
+                const formData = new FormData(this);
+                
+                const response = await fetch('/procesar_soat', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('imagen-resultado').src = data.imagen_resultado;
+                    resultado.style.display = 'block';
+                    btnDescargar.style.display = 'block';
+                    messageContainer.innerHTML = `<div class="message success">✅ ${data.message}</div>`;
+                } else {
+                    throw new Error(data.error || 'Error desconocido');
+                }
+                
+            } catch (error) {
+                messageContainer.innerHTML = `<div class="message error">❌ Error: ${error.message}</div>`;
+            } finally {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span class="icon">🚀</span>Procesar SOAT';
+            }
+        });
+
+        function descargarResultado() {
+            window.location.href = '/descargar_resultado';
+        }
+
+        // Efecto de entrada
+        window.addEventListener('load', function() {
+            document.querySelector('.container').style.opacity = '0';
+            document.querySelector('.container').style.transform = 'translateY(30px)';
+            
+            setTimeout(() => {
+                document.querySelector('.container').style.transition = 'all 0.5s ease';
+                document.querySelector('.container').style.opacity = '1';
+                document.querySelector('.container').style.transform = 'translateY(0)';
+            }, 100);
+        });
+    </script>
+</body>
+</html>
