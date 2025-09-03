@@ -21,10 +21,10 @@ class SOATProcessor:
         # Coordenadas y dimensiones por defecto para cada tipo de SOAT
         self.configuracion = {
             'protecta': {
-                'x': 875, 'y': 1767
+                'x': 940, 'y': 1771
             },
             'positiva': {
-                'x': 875, 'y': 1767
+                'x': 940, 'y': 1771
             }
         }
     
@@ -496,8 +496,8 @@ class SOATProcessor:
 
             self.guardar_imagen_intermedia(pegada, "imagen_numero_original", tipo_soat)
 
-            # NUEVO: Aplicar brillo a la imagen a pegar
-            if aplicar_mejoras:
+            # NUEVO: Aplicar brillo a la imagen a pegar (DESACTIVADO)
+            if False:  # Cambiar de aplicar_mejoras a False
                 print(f"[INFO] Aplicando mejora de brillo a imagen del numero con factor: {factor_brillo}")
                 pegada = self.aumentar_brillo(pegada, factor_brillo=factor_brillo)
                 self.guardar_imagen_intermedia(pegada, "imagen_numero_con_brillo", tipo_soat)
