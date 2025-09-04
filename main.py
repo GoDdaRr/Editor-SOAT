@@ -19,15 +19,6 @@ class SOATProcessor:
         # Extensiones de imagen soportadas
         self.extensiones_imagen = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']
         
-        # Coordenadas y dimensiones por defecto para cada tipo de SOAT
-        self.configuracion = {
-            'protecta': {
-                'x': 940, 'y': 1771
-            },
-            'positiva': {
-                'x': 940, 'y': 1771
-            }
-        }
     
     def buscar_imagen_por_numero(self, numero: str) -> Optional[str]:
         """
@@ -261,7 +252,7 @@ class SOATProcessor:
                                 numero: str,
                                 archivo_salida: str = "resultado.jpg",
                                 aplicar_mejoras: bool = True,
-                                factor_brillo: float = 1.5,
+                                factor_brillo: float = 1.1,
                                 dpi_conversion: int = 300,
                                 redimensionar_final: bool = False,
                                 ancho_final: int = 1694,
@@ -334,14 +325,14 @@ class SOATProcessor:
             # 5. Configuración de posiciones fijas para cada dígito
             posiciones_digitos = {
                 'protecta': {
-                    0: {'x': 940, 'y': 1771},   # Primer dígito (más a la izquierda)
-                    1: {'x': 1000, 'y': 1771},  # Segundo dígito (centro)
-                    2: {'x': 1060, 'y': 1771}   # Tercer dígito (más a la derecha)
+                    0: {'x': 938, 'y': 1772},   # Primer dígito (más a la izquierda)
+                    1: {'x': 965, 'y': 1772},  # Segundo dígito (centro)
+                    2: {'x': 994, 'y': 1772}   # Tercer dígito (más a la derecha)
                 },
                 'positiva': {
-                    0: {'x': 940, 'y': 1771},   # Primer dígito (más a la izquierda)
-                    1: {'x': 1000, 'y': 1771},  # Segundo dígito (centro)
-                    2: {'x': 1060, 'y': 1771}   # Tercer dígito (más a la derecha)
+                    0: {'x': 938, 'y': 1772},   # Primer dígito (más a la izquierda)
+                    1: {'x': 965, 'y': 1772},  # Segundo dígito (centro)
+                    2: {'x': 994, 'y': 1772}   # Tercer dígito (más a la derecha)
                 }
             }
             
@@ -396,10 +387,10 @@ class SOATProcessor:
             # 7. Guardar imagen intermedia del resultado
             self.guardar_imagen_intermedia(resultado, "resultado_final_con_digitos", tipo_soat)
             
-            # 8. Guardar resultado final como JPG
+            # 8. Guardar la imagen final (DESCOMENTAR ESTA LÍNEA)
             cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
             
-            # 9. NUEVO: Generar PDF si está habilitado
+            # 9. Generar PDF si está habilitado
             archivo_pdf = None
             if generar_pdf:
                 pdf_path = archivo_salida.replace('.jpg', '.pdf')
@@ -426,8 +417,8 @@ class SOATProcessor:
                 'dimensiones_finales': f'{resultado.shape[1]}x{resultado.shape[0]}',
                 'redimensionado': redimensionar_final,
                 'archivo_salida': archivo_salida,
-                'archivo_pdf': archivo_pdf,  # NUEVO: Ruta del PDF generado
-                'imagen_resultado': resultado
+                'archivo_pdf': archivo_pdf,
+                'imagen_resultado': resultado  # Esta es la imagen que se usará para todo
             }
             
         except Exception as e:
@@ -502,17 +493,17 @@ class SOATProcessor:
             return ""
 
     def pdf_to_image_mejorada(self, tipo_soat: str, dpi: int = 300, aplicar_mejoras: bool = True, 
-                             factor_brillo: float = 1.5) -> Optional[np.ndarray]:
+                             factor_brillo: float = 1.3) -> Optional[np.ndarray]:
         """
         Convierte PDF a imagen con mejoras configurables
         """
         try:
             if tipo_soat == 'protecta':
                 archivo_pdf = self.archivo_protecta
-                archivo_png = "final_protecta1.png"
+                archivo_png = "imagen-flujo.png"  # CAMBIADO: de "final_protecta1.png" a "imagen-flujo.png"
             elif tipo_soat == 'positiva':
                 archivo_pdf = self.archivo_positiva
-                archivo_png = "final_positiva1.png"
+                archivo_png = "imagen-flujo.png"  # CAMBIADO: de "final_positiva1.png" a "imagen-flujo.png"
             else:
                 raise ValueError("tipo_soat debe ser 'protecta' o 'positiva'")
             
@@ -586,7 +577,7 @@ class SOATProcessor:
                 'error': f'Error restaurando archivos: {str(e)}'
             }
 
-    def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.5) -> np.ndarray:
+    def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.3) -> np.ndarray:
         """
         Aumenta el brillo de una imagen
         
@@ -716,7 +707,7 @@ class SOATProcessor:
                                 numero: str,
                                 archivo_salida: str = "resultado.jpg",
                                 aplicar_mejoras: bool = True,
-                                factor_brillo: float = 1.5,
+                                factor_brillo: float = 1.3,
                                 dpi_conversion: int = 300,
                                 redimensionar_final: bool = False,
                                 ancho_final: int = 1694,

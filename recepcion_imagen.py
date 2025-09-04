@@ -93,8 +93,13 @@ def procesar_soat():
             pass  # No importa si no se puede eliminar
         
         if resultado['success']:
-            # Convertir imagen resultado a base64 para mostrar en el frontend
+            # Obtener la imagen resultado del procesamiento
             imagen_resultado = resultado['imagen_resultado']
+            
+            # Guardar la imagen en el servidor (para descarga)
+            cv2.imwrite(resultado_path, imagen_resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            
+            # Convertir la MISMA imagen a base64 para mostrar en el frontend
             _, buffer = cv2.imencode('.jpg', imagen_resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
             img_base64 = base64.b64encode(buffer).decode('utf-8')
             
