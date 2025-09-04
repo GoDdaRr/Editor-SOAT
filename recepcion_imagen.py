@@ -83,7 +83,7 @@ def procesar_soat():
             redimensionar_final=True,
             ancho_final=1694,
             alto_final=3300,
-            generar_pdf=generar_pdf  # NUEVO: Pasar parámetro de PDF
+            generar_pdf=True  # Asegurar que esté en True
         )
         
         # Limpiar archivo temporal
@@ -242,6 +242,50 @@ def descargar_resultado():
         
     except Exception as e:
         return f"Error descargando archivo: {str(e)}", 500
+
+@app.route('/descargar_pdf')
+def descargar_pdf():
+    """Descargar el archivo SOAT procesado en formato PDF más reciente"""
+    try:
+        archivos_pdf = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
+                       if f.startswith('resultado_') and f.endswith('.pdf')]
+        
+        if not archivos_pdf:
+            return "No hay archivos PDF procesados disponibles para descargar", 404
+        
+        # Tomar el más reciente
+        archivo_mas_reciente = max(archivos_pdf, 
+                                 key=lambda x: os.path.getctime(os.path.join(app.config['UPLOAD_FOLDER'], x)))
+        resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
+        
+        if os.path.exists(resultado_path):
+            return send_file(resultado_path, as_attachment=True, download_name=archivo_mas_reciente)
+        return "Archivo PDF no encontrado", 404
+        
+    except Exception as e:
+        return f"Error descargando archivo PDF: {str(e)}", 500
+
+@app.route('/descargar_jpg')
+def descargar_jpg():
+    """Descargar el archivo SOAT procesado en formato JPG más reciente"""
+    try:
+        archivos_jpg = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
+                       if f.startswith('resultado_') and f.endswith('.jpg')]
+        
+        if not archivos_jpg:
+            return "No hay archivos JPG procesados disponibles para descargar", 404
+        
+        # Tomar el más reciente
+        archivo_mas_reciente = max(archivos_jpg, 
+                                 key=lambda x: os.path.getctime(os.path.join(app.config['UPLOAD_FOLDER'], x)))
+        resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
+        
+        if os.path.exists(resultado_path):
+            return send_file(resultado_path, as_attachment=True, download_name=archivo_mas_reciente)
+        return "Archivo JPG no encontrado", 404
+        
+    except Exception as e:
+        return f"Error descargando archivo JPG: {str(e)}", 500
 
 @app.route('/restaurar_archivos', methods=['POST'])
 def restaurar_archivos():

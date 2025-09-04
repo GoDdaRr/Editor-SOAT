@@ -411,7 +411,7 @@ class SOATProcessor:
             
             return {
                 'success': True,
-                'mensaje': f'SOAT {tipo_soat.upper()} procesado correctamente con número: {numero} (descompuesto en {len(digitos)} dígitos)',
+                'mensaje': f'SOAT {tipo_soat.upper()} procesado correctamente con número: {numero}',
                 'tipo_soat': tipo_soat,
                 'numero': numero,
                 'digitos': digitos,

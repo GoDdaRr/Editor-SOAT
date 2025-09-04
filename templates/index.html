@@ -150,7 +150,6 @@
 
         .btn-download {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            display: none;
             width: 48%;
             margin: 5px 1%;
         }
@@ -238,59 +237,11 @@
             font-size: 1.5rem;
             margin-right: 8px;
         }
-
-        /* Nuevos estilos para información de dígitos */
-        .digitos-info {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 10px;
-            padding: 15px;
-            margin: 15px 0;
-            text-align: left;
-        }
-
-        .digitos-info h4 {
-            color: #667eea;
-            margin-bottom: 10px;
-            font-size: 1rem;
-        }
-
-        .digito-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 5px 0;
-            border-bottom: 1px solid #e9ecef;
-        }
-
-        .digito-item:last-child {
-            border-bottom: none;
-        }
-
-        .digito-numero {
-            font-weight: bold;
-            color: #333;
-        }
-
-        .digito-posicion {
-            font-size: 0.9rem;
-            color: #666;
-        }
-
-        .format-info {
-            background: #e3f2fd;
-            border: 1px solid #bbdefb;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 10px 0;
-            font-size: 0.9rem;
-            color: #1565c0;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo">🚗 SOAT Editor</div>
+        <div class="logo"> SOAT Editor</div>
         <p class="subtitle">Agrega montos a tus documentos SOAT</p>
         
         <form id="procesarForm" enctype="multipart/form-data">
@@ -347,21 +298,10 @@
         <div class="resultado" id="resultado">
             <img id="imagen-resultado" src="" alt="SOAT procesado">
             
-            <!-- Información de dígitos procesados -->
-            <div class="digitos-info" id="digitos-info" style="display: none;">
-                <h4>🔢 Dígitos Procesados:</h4>
-                <div id="digitos-list"></div>
-            </div>
-            
-            <!-- Información de formatos disponibles -->
-            <div class="format-info" id="format-info" style="display: none;">
-                <strong>📁 Formatos disponibles:</strong> El resultado se ha guardado en ambos formatos para tu comodidad.
-            </div>
-            
             <!-- Botones de descarga -->
             <div class="download-buttons" id="download-buttons">
                 <button type="button" class="btn btn-download" id="btnDescargarJPG" onclick="descargarJPG()">
-                    <span class="icon">🖼️</span>Descargar JPG
+                    <span class="icon">️</span>Descargar JPG
                 </button>
                 <button type="button" class="btn btn-download btn-download-pdf" id="btnDescargarPDF" onclick="descargarPDF()">
                     <span class="icon">📄</span>Descargar PDF
@@ -406,35 +346,6 @@
             }
         });
 
-        // Función para mostrar información de dígitos
-        function mostrarDigitosInfo(digitos, imagenesPegadas) {
-            const digitosInfo = document.getElementById('digitos-info');
-            const digitosList = document.getElementById('digitos-list');
-            
-            if (digitos && digitos.length > 0) {
-                digitosList.innerHTML = '';
-                
-                digitos.forEach((digito, index) => {
-                    const imagenInfo = imagenesPegadas.find(img => img.posicion === index);
-                    const div = document.createElement('div');
-                    div.className = 'digito-item';
-                    
-                    div.innerHTML = `
-                        <span class="digito-numero">Dígito ${digito}</span>
-                        <span class="digito-posicion">
-                            ${imagenInfo ? `Posición: ${imagenInfo.coordenadas_fijas}` : 'No encontrado'}
-                        </span>
-                    `;
-                    
-                    digitosList.appendChild(div);
-                });
-                
-                digitosInfo.style.display = 'block';
-            } else {
-                digitosInfo.style.display = 'none';
-            }
-        }
-
         // Envío del formulario
         document.getElementById('procesarForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -444,13 +355,11 @@
             const messageContainer = document.getElementById('message-container');
             const submitBtn = document.getElementById('submitBtn');
             const downloadButtons = document.getElementById('download-buttons');
-            const formatInfo = document.getElementById('format-info');
             
             // Limpiar mensajes previos
             messageContainer.innerHTML = '';
             resultado.style.display = 'none';
             downloadButtons.style.display = 'none';
-            formatInfo.style.display = 'none';
             loading.style.display = 'block';
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="icon">⏳</span>Procesando...';
@@ -468,17 +377,7 @@
                 if (data.success) {
                     document.getElementById('imagen-resultado').src = data.imagen_resultado;
                     resultado.style.display = 'block';
-                    downloadButtons.classList.add('show');
-                    
-                    // Mostrar información de formatos si PDF está disponible
-                    if (data.pdf_disponible) {
-                        formatInfo.style.display = 'block';
-                    }
-                    
-                    // Mostrar información de dígitos si está disponible
-                    if (data.digitos && data.imagenes_pegadas) {
-                        mostrarDigitosInfo(data.digitos, data.imagenes_pegadas);
-                    }
+                    downloadButtons.style.display = 'block';
                     
                     messageContainer.innerHTML = `<div class="message success">✅ ${data.message}</div>`;
                 } else {
