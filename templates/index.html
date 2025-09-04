@@ -219,6 +219,44 @@
             font-size: 1.5rem;
             margin-right: 8px;
         }
+
+        /* Nuevos estilos para información de dígitos */
+        .digitos-info {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: left;
+        }
+
+        .digitos-info h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .digito-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .digito-item:last-child {
+            border-bottom: none;
+        }
+
+        .digito-numero {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .digito-posicion {
+            font-size: 0.9rem;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -254,8 +292,11 @@
             <!-- Campo de monto -->
             <div class="form-group">
                 <label for="monto"><span class="icon">💰</span>Ingrese monto:</label>
-                <input type="text" id="monto" name="monto" class="monto-input" placeholder="Ej: 170.00" required pattern="[0-9]+(\.[0-9]{1,2})?" title="Solo números y decimales (ej: 170.00)">
-                <div class="file-info">Ingresa solo números (puede incluir decimales)</div>
+                <input type="text" id="monto" name="monto" class="monto-input" 
+                       placeholder="Ej: 25, 123, 170.50" required 
+                       pattern="[0-9]+(\.[0-9]{1,2})?" 
+                       title="Solo números y decimales (ej: 25, 123, 170.50)">
+                <div class="file-info">Ingresa números (se descompondrán en dígitos individuales)</div>
             </div>
             
             <!-- Botón de inicio -->
@@ -276,6 +317,13 @@
         <!-- Resultado y descarga -->
         <div class="resultado" id="resultado">
             <img id="imagen-resultado" src="" alt="SOAT procesado">
+            
+            <!-- Información de dígitos procesados -->
+            <div class="digitos-info" id="digitos-info" style="display: none;">
+                <h4>🔢 Dígitos Procesados:</h4>
+                <div id="digitos-list"></div>
+            </div>
+            
             <button type="button" class="btn btn-download" id="btnDescargar" onclick="descargarResultado()">
                 <span class="icon">💾</span>Descargar SOAT Editado
             </button>
@@ -318,6 +366,35 @@
             }
         });
 
+        // Función para mostrar información de dígitos
+        function mostrarDigitosInfo(digitos, imagenesPegadas) {
+            const digitosInfo = document.getElementById('digitos-info');
+            const digitosList = document.getElementById('digitos-list');
+            
+            if (digitos && digitos.length > 0) {
+                digitosList.innerHTML = '';
+                
+                digitos.forEach((digito, index) => {
+                    const imagenInfo = imagenesPegadas.find(img => img.posicion === index);
+                    const div = document.createElement('div');
+                    div.className = 'digito-item';
+                    
+                    div.innerHTML = `
+                        <span class="digito-numero">Dígito ${digito}</span>
+                        <span class="digito-posicion">
+                            ${imagenInfo ? `Posición: ${imagenInfo.coordenadas_fijas}` : 'No encontrado'}
+                        </span>
+                    `;
+                    
+                    digitosList.appendChild(div);
+                });
+                
+                digitosInfo.style.display = 'block';
+            } else {
+                digitosInfo.style.display = 'none';
+            }
+        }
+
         // Envío del formulario
         document.getElementById('procesarForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -350,6 +427,12 @@
                     document.getElementById('imagen-resultado').src = data.imagen_resultado;
                     resultado.style.display = 'block';
                     btnDescargar.style.display = 'block';
+                    
+                    // Mostrar información de dígitos si está disponible
+                    if (data.digitos && data.imagenes_pegadas) {
+                        mostrarDigitosInfo(data.digitos, data.imagenes_pegadas);
+                    }
+                    
                     messageContainer.innerHTML = `<div class="message success">✅ ${data.message}</div>`;
                 } else {
                     throw new Error(data.error || 'Error desconocido');

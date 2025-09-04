@@ -157,6 +157,240 @@ class SOATProcessor:
         except:
             return False
     
+    def descomponer_numero_en_digitos(self, numero: str) -> List[str]:
+        """
+        Descompone un número en sus dígitos individuales
+        
+        Args:
+            numero: Número como string (ej: "25", "123")
+            
+        Returns:
+            List[str]: Lista de dígitos individuales (ej: ["2", "5"], ["1", "2", "3"])
+        """
+        try:
+            # Limpiar el número (remover decimales si los hay)
+            numero_limpio = numero.replace('.', '').replace(',', '')
+            
+            # Validar que solo contenga dígitos
+            if not numero_limpio.isdigit():
+                return []
+            
+            # Validar longitud máxima (3 dígitos)
+            if len(numero_limpio) > 3:
+                print(f"[WARNING] Número {numero} tiene más de 3 dígitos, truncando a los primeros 3")
+                numero_limpio = numero_limpio[:3]
+            
+            # Descomponer en dígitos individuales
+            digitos = list(numero_limpio)
+            
+            print(f"[INFO] Número {numero} descompuesto en dígitos: {digitos}")
+            return digitos
+            
+        except Exception as e:
+            print(f"[ERROR] Error descomponiendo número {numero}: {e}")
+            return []
+
+    def buscar_imagenes_por_digitos(self, digitos: List[str]) -> tuple:
+        """
+        Busca imágenes para cada dígito individual
+        
+        Args:
+            digitos: Lista de dígitos individuales
+            
+        Returns:
+            tuple: (imagenes_encontradas, digitos_no_encontrados)
+        """
+        imagenes_encontradas = []
+        digitos_no_encontrados = []
+        
+        for i, digito in enumerate(digitos):
+            ruta_imagen = self.buscar_imagen_por_numero(digito)
+            
+            if ruta_imagen:
+                imagenes_encontradas.append({
+                    'digito': digito,
+                    'posicion': i,
+                    'ruta': ruta_imagen,
+                    'encontrada': True
+                })
+                print(f"[OK] Dígito {digito} encontrado en: {ruta_imagen}")
+            else:
+                digitos_no_encontrados.append(digito)
+                imagenes_encontradas.append({
+                    'digito': digito,
+                    'posicion': i,
+                    'ruta': None,
+                    'encontrada': False
+                })
+                print(f"[ERROR] No se encontró imagen para el dígito {digito}")
+        
+        return imagenes_encontradas, digitos_no_encontrados
+
+    def procesar_soat_con_digitos(self, 
+                                tipo_soat: str,
+                                numero: str,
+                                archivo_salida: str = "resultado.jpg",
+                                aplicar_mejoras: bool = True,
+                                factor_brillo: float = 1.5,
+                                dpi_conversion: int = 300,
+                                redimensionar_final: bool = False,
+                                ancho_final: int = 1694,
+                                alto_final: int = 3300) -> dict:
+        """
+        NUEVA FUNCIONALIDAD: Procesa SOAT descomponiendo el número en dígitos individuales
+        y pegando cada imagen en posiciones fijas predefinidas
+        
+        Args:
+            tipo_soat: 'protecta' o 'positiva'
+            numero: Número a procesar (máximo 3 dígitos)
+            archivo_salida: Archivo de salida
+            aplicar_mejoras: Aplicar mejoras de calidad
+            factor_brillo: Factor de brillo
+            dpi_conversion: DPI de conversión
+            redimensionar_final: Redimensionar imagen final
+            ancho_final: Ancho objetivo
+            alto_final: Alto objetivo
+            
+        Returns:
+            dict: Resultado del procesamiento
+        """
+        try:
+            print(f"[INFO] Iniciando procesamiento de SOAT con dígitos para número: {numero}")
+            
+            # 1. Validar y descomponer número
+            if not self.validar_numero(numero):
+                return {'success': False, 'error': 'El número ingresado no es válido.'}
+            
+            digitos = self.descomponer_numero_en_digitos(numero)
+            if not digitos:
+                return {'success': False, 'error': 'No se pudo descomponer el número en dígitos.'}
+            
+            # 2. Buscar imágenes para cada dígito
+            imagenes_info, digitos_no_encontrados = self.buscar_imagenes_por_digitos(digitos)
+            
+            if digitos_no_encontrados:
+                # Obtener números disponibles para mostrar error
+                imagenes_disponibles = self.listar_imagenes_disponibles()
+                numeros_disponibles = []
+                for img in imagenes_disponibles:
+                    numeros_disponibles.extend(img['numeros'])
+                
+                return {
+                    'success': False, 
+                    'error': f'No se encontraron imágenes para los dígitos: {", ".join(digitos_no_encontrados)}. Dígitos disponibles: {", ".join(set(numeros_disponibles))}'
+                }
+            
+            # 3. Convertir PDF a imagen CON MEJORAS
+            fondo = self.pdf_to_image_mejorada(tipo_soat, dpi_conversion, aplicar_mejoras, factor_brillo)
+            if fondo is None:
+                return {'success': False, 'error': f'No se pudo procesar el PDF de {tipo_soat}'}
+            
+            # 4. Redimensionar fondo si está habilitado
+            dimensiones_originales = f'{fondo.shape[1]}x{fondo.shape[0]}'
+            
+            if redimensionar_final:
+                print(f"[INFO] Redimensionando fondo a {ancho_final}x{alto_final} ANTES de pegar...")
+                fondo = self.redimensionar_resultado_final(fondo, ancho_final, alto_final)
+                self.guardar_imagen_intermedia(fondo, "fondo_redimensionado", tipo_soat)
+                
+                # Aplicar saturación a región específica
+                if aplicar_mejoras:
+                    print("[INFO] Aplicando saturación a región específica del fondo...")
+                    fondo = self.saturar_region_rectangulo(fondo, 35, 2525, 1661, 2780, 1.6)
+                    self.guardar_imagen_intermedia(fondo, "fondo_region_saturada", tipo_soat)
+            
+            # 5. Configuración de posiciones fijas para cada dígito
+            # Estas coordenadas las puedes ajustar manualmente según tus necesidades
+            posiciones_digitos = {
+                'protecta': {
+                    0: {'x': 940, 'y': 1771},   # Primer dígito (más a la izquierda)
+                    1: {'x': 1000, 'y': 1771},  # Segundo dígito (centro)
+                    2: {'x': 1060, 'y': 1771}   # Tercer dígito (más a la derecha)
+                },
+                'positiva': {
+                    0: {'x': 940, 'y': 1771},   # Primer dígito (más a la izquierda)
+                    1: {'x': 1000, 'y': 1771},  # Segundo dígito (centro)
+                    2: {'x': 1060, 'y': 1771}   # Tercer dígito (más a la derecha)
+                }
+            }
+            
+            # 6. Procesar cada dígito en su posición fija
+            resultado = fondo.copy()
+            imagenes_pegadas = []
+            
+            for img_info in imagenes_info:
+                if not img_info['encontrada']:
+                    continue
+                
+                # Cargar imagen del dígito
+                imagen_digito = cv2.imread(img_info['ruta'])
+                if imagen_digito is None:
+                    print(f"[ERROR] No se pudo cargar la imagen: {img_info['ruta']}")
+                    continue
+                
+                # Guardar imagen intermedia
+                self.guardar_imagen_intermedia(imagen_digito, f"digito_{img_info['digito']}_original", tipo_soat)
+                
+                # Obtener posición fija para este dígito
+                posicion_digito = img_info['posicion']
+                if posicion_digito not in posiciones_digitos[tipo_soat]:
+                    print(f"[ERROR] No hay posición definida para el dígito en posición {posicion_digito}")
+                    continue
+                
+                x_posicion = posiciones_digitos[tipo_soat][posicion_digito]['x']
+                y_posicion = posiciones_digitos[tipo_soat][posicion_digito]['y']
+                
+                # Verificar límites
+                h_digito, w_digito = imagen_digito.shape[:2]
+                h_fondo, w_fondo = resultado.shape[:2]
+                
+                print(f"[INFO] Pegando dígito {img_info['digito']} de {w_digito}x{h_digito} en posición fija ({x_posicion},{y_posicion})")
+                
+                if x_posicion + w_digito > w_fondo or y_posicion + h_digito > h_fondo:
+                    print(f"[ERROR] Dígito {img_info['digito']} se sale de los límites. Fondo: {w_fondo}x{h_fondo}")
+                    continue
+                
+                # Pegar imagen del dígito en posición fija
+                resultado[y_posicion:y_posicion+h_digito, x_posicion:x_posicion+w_digito] = imagen_digito
+                
+                imagenes_pegadas.append({
+                    'digito': img_info['digito'],
+                    'posicion': img_info['posicion'],
+                    'coordenadas_fijas': f'({x_posicion},{y_posicion})',
+                    'dimensiones': f'{w_digito}x{h_digito}'
+                })
+                
+                print(f"[OK] Dígito {img_info['digito']} pegado en posición fija ({x_posicion},{y_posicion})")
+            
+            # 7. Guardar imagen intermedia del resultado
+            self.guardar_imagen_intermedia(resultado, "resultado_final_con_digitos", tipo_soat)
+            
+            # 8. Guardar resultado final
+            cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            
+            return {
+                'success': True,
+                'mensaje': f'SOAT {tipo_soat.upper()} procesado correctamente con número: {numero} (descompuesto en {len(digitos)} dígitos)',
+                'tipo_soat': tipo_soat,
+                'numero': numero,
+                'digitos': digitos,
+                'imagenes_pegadas': imagenes_pegadas,
+                'total_digitos': len(digitos),
+                'posiciones_utilizadas': posiciones_digitos[tipo_soat],
+                'mejoras_aplicadas': aplicar_mejoras,
+                'factor_brillo_usado': factor_brillo,
+                'dpi_usado': dpi_conversion,
+                'imagen_origen': 'descompuesto en dígitos con posiciones fijas',
+                'dimensiones_originales': dimensiones_originales,
+                'dimensiones_finales': f'{resultado.shape[1]}x{resultado.shape[0]}',
+                'redimensionado': redimensionar_final,
+                'archivo_salida': archivo_salida,
+                'imagen_resultado': resultado
+            }
+            
+        except Exception as e:
+            return {'success': False, 'error': f'Error interno procesando dígitos: {str(e)}'}
+    
     def actualizar_archivo_pdf(self, tipo_soat: str, nuevo_archivo_path: str) -> bool:
         """
         Actualiza el archivo PDF de referencia (protecta o positiva)

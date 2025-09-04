@@ -25,7 +25,7 @@ def index():
 
 @app.route('/procesar_soat', methods=['POST'])
 def procesar_soat():
-    """Procesa el SOAT con el monto ingresado usando todas las mejoras del main.py"""
+    """Procesa el SOAT con el monto ingresado usando la nueva funcionalidad de dígitos con posiciones fijas"""
     try:
         # Recibir datos del formulario
         archivo_pdf = request.files.get('pdf_file')
@@ -67,21 +67,21 @@ def procesar_soat():
         if not processor.actualizar_archivo_pdf(tipo_soat, pdf_temp_path):
             return jsonify({'error': f'No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.'}), 500
         
-        # Procesar SOAT con el monto usando main.py CON TODAS LAS MEJORAS
+        # Procesar SOAT con la nueva funcionalidad de dígitos
         resultado_filename = f"resultado_{tipo_soat}_{monto}_{pdf_filename.replace('.pdf', '.jpg')}"
         resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], resultado_filename)
         
-        # Usar la función mejorada del main.py
-        resultado = processor.procesar_soat_con_numero(
+        # Usar la nueva función de procesamiento con dígitos y posiciones fijas
+        resultado = processor.procesar_soat_con_digitos(
             tipo_soat=tipo_soat,
             numero=monto,
             archivo_salida=resultado_path,
             aplicar_mejoras=aplicar_mejoras,
             factor_brillo=factor_brillo,
             dpi_conversion=dpi_conversion,
-            redimensionar_final=True,  # NUEVO: Habilitar redimensionamiento
-            ancho_final=1694,          # NUEVO: Ancho objetivo
-            alto_final=3300            # NUEVO: Alto objetivo
+            redimensionar_final=True,
+            ancho_final=1694,
+            alto_final=3300
         )
         
         # Limpiar archivo temporal
@@ -101,8 +101,10 @@ def procesar_soat():
                 'mejoras_aplicadas': resultado.get('mejoras_aplicadas', False),
                 'factor_brillo_usado': factor_brillo,
                 'dpi_usado': dpi_conversion,
-                'imagen_origen': resultado.get('imagen_origen', 'sistema'),
-                'ruta_imagen_usada': resultado.get('ruta_imagen_usada', 'N/A')
+                'imagen_origen': resultado.get('imagen_origen', 'descompuesto en dígitos con posiciones fijas'),
+                'total_digitos': resultado.get('total_digitos', 0),
+                'digitos_procesados': resultado.get('digitos', []),
+                'posiciones_utilizadas': resultado.get('posiciones_utilizadas', {})
             }
             
             return jsonify({
@@ -112,9 +114,11 @@ def procesar_soat():
                 'tipo_soat': resultado['tipo_soat'],
                 'monto': resultado['numero'],
                 'empresa': resultado['tipo_soat'].upper(),
-                'dimensiones_fondo': resultado.get('dimensiones_fondo', 'N/A'),
-                'dimensiones_pegada': resultado.get('dimensiones_pegada', 'N/A'),
-                'posicion': resultado.get('posicion', 'N/A'),
+                'digitos': resultado.get('digitos', []),
+                'total_digitos': resultado.get('total_digitos', 0),
+                'imagenes_pegadas': resultado.get('imagenes_pegadas', []),
+                'posiciones_utilizadas': resultado.get('posiciones_utilizadas', {}),
+                'dimensiones_finales': resultado.get('dimensiones_finales', 'N/A'),
                 'archivo_resultado': resultado_filename,
                 'info_procesamiento': info_procesamiento
             })
