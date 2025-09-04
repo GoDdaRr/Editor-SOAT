@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editor SOAT - Monto</title>
+    <title>Editor SOAT</title>
     <style>
         * {
             margin: 0;
@@ -23,394 +23,444 @@
 
         .container {
             background: white;
-            padding: 40px;
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            max-width: 500px;
+            padding: 40px;
+            max-width: 600px;
             width: 100%;
+        }
+
+        .header {
             text-align: center;
-        }
-
-        .logo {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-
-        .subtitle {
-            color: #666;
             margin-bottom: 30px;
-            font-size: 1.1rem;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.2em;
+            margin-bottom: 8px;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 1em;
+            font-weight: 400;
         }
 
         .form-group {
             margin-bottom: 25px;
-            text-align: left;
         }
 
-        label {
+        .form-group label {
             display: block;
             margin-bottom: 8px;
-            font-weight: 600;
             color: #333;
+            font-weight: 500;
+            font-size: 1.1em;
         }
 
-        .tipo-selector {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .tipo-option {
-            background: #f8f9fa;
-            border: 3px solid #e9ecef;
-            border-radius: 15px;
-            padding: 25px 15px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-        }
-
-        .tipo-option:hover {
-            border-color: #667eea;
-            background: #f0f4ff;
-            transform: translateY(-2px);
-        }
-
-        .tipo-option.selected {
-            border-color: #667eea;
-            background: #667eea;
-            color: white;
-            transform: translateY(-2px);
-        }
-
-        .tipo-option input[type="radio"] {
-            display: none;
-        }
-
-        .tipo-option h3 {
-            font-size: 1.2rem;
-            margin-bottom: 5px;
-        }
-
-        .tipo-option p {
-            font-size: 0.9rem;
-            opacity: 0.8;
-        }
-
-        input[type="file"], input[type="text"] {
+        .form-group input {
             width: 100%;
             padding: 15px;
-            border: 2px solid #e9ecef;
+            border: 2px solid #e1e5e9;
             border-radius: 10px;
-            font-size: 1rem;
+            font-size: 1.1em;
             transition: border-color 0.3s ease;
         }
 
-        input[type="file"]:focus, input[type="text"]:focus {
+        .form-group input:focus {
             outline: none;
             border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
-        .monto-input {
-            font-size: 1.2rem;
+        /* Estilos para la selección de tipo de SOAT */
+        .tipo-soat-group {
+            margin-bottom: 25px;
+        }
+
+        .tipo-soat-group label {
+            display: block;
+            margin-bottom: 15px;
+            color: #333;
+            font-weight: 500;
+            font-size: 1.1em;
+        }
+
+        .tipo-options {
+            display: flex;
+            gap: 20px;
+        }
+
+        .tipo-option {
+            flex: 1;
+            position: relative;
+        }
+
+        .tipo-option input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .tipo-option label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px 20px;
+            background: #f8f9fa;
+            border: 3px solid #e1e5e9;
+            border-radius: 20px;
             text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
             font-weight: 600;
+            font-size: 1.3em;
+            color: #333;
+            margin: 0;
+            min-height: 120px;
+        }
+
+        .tipo-option label:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        /* Estilos específicos para Protecta (morado) */
+        .tipo-option input[type="radio"]:checked + label[for="protecta"] {
+            background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
+            color: white;
+            border-color: #8e44ad;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(142, 68, 173, 0.4);
+        }
+
+        /* Estilos específicos para Positiva (naranja pastel) */
+        .tipo-option input[type="radio"]:checked + label[for="positiva"] {
+            background: linear-gradient(135deg, #ffb366 0%, #ffcc80 100%);
+            color: #d84315;
+            border-color: #ff9800;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(255, 179, 102, 0.4);
+        }
+
+        .tipo-option input[type="radio"]:checked + label::after {
+            content: "✓";
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        /* Iconos para cada tipo */
+        .tipo-icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #e1e5e9;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            accent-color: #667eea;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+            font-size: 1.1em;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
         }
 
         .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px 30px;
+            flex: 1;
+            padding: 15px 25px;
             border: none;
             border-radius: 10px;
-            cursor: pointer;
-            font-size: 1.1rem;
+            font-size: 1.1em;
             font-weight: 600;
-            width: 100%;
+            cursor: pointer;
             transition: all 0.3s ease;
-            margin: 10px 0;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
         }
 
-        .btn:hover {
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
 
         .btn:disabled {
-            background: #ccc;
+            opacity: 0.6;
             cursor: not-allowed;
             transform: none;
-            box-shadow: none;
         }
 
-        .btn-download {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            width: 48%;
-            margin: 5px 1%;
-        }
-
-        .btn-download:hover {
-            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
-        }
-
-        .btn-download-pdf {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-        }
-
-        .btn-download-pdf:hover {
-            box-shadow: 0 10px 20px rgba(220, 53, 69, 0.3);
-        }
-
-        .download-buttons {
-            display: none;
-            margin-top: 20px;
-        }
-
-        .download-buttons.show {
-            display: block;
-        }
-
-        .loading {
-            display: none;
-            margin: 20px 0;
-        }
-
-        .loading-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .message {
-            padding: 15px;
+        .result-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
             border-radius: 10px;
-            margin: 15px 0;
-            font-weight: 500;
-        }
-
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .resultado {
             display: none;
-            margin-top: 25px;
         }
 
-        .resultado img {
+        .result-image {
             max-width: 100%;
+            height: auto;
             border-radius: 10px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
 
-        .file-info {
-            font-size: 0.9rem;
-            color: #666;
-            margin-top: 5px;
-            text-align: center;
+        .download-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
         }
 
-        .icon {
-            font-size: 1.5rem;
-            margin-right: 8px;
+        .download-btn {
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(79, 172, 254, 0.3);
+        }
+
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-size: 1.2em;
+            margin: 20px 0;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #c33;
+        }
+
+        .success {
+            background: #efe;
+            color: #363;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #363;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo"> SOAT Editor</div>
-        <p class="subtitle">Agrega montos a tus documentos SOAT</p>
-        
-        <form id="procesarForm" enctype="multipart/form-data">
-            <!-- Selector de tipo de compañía -->
-            <div class="form-group">
-                <label>Selecciona el tipo de SOAT:</label>
-                <div class="tipo-selector">
-                    <div class="tipo-option" onclick="selectTipo('protecta')">
+        <div class="header">
+            <h1>Editor SOAT</h1>
+            <p>Procesa documentos SOAT con montos automáticamente</p>
+        </div>
+
+        <form id="soatForm" enctype="multipart/form-data">
+            <!-- Selección de tipo de SOAT con cuadros interactivos - MOVIDO ARRIBA -->
+            <div class="tipo-soat-group">
+                <label>Tipo de SOAT:</label>
+                <div class="tipo-options">
+                    <div class="tipo-option">
                         <input type="radio" id="protecta" name="tipo_soat" value="protecta" required>
-                        <h3>🛡️ PROTECTA</h3>
-                        <p>Seguro Protecta</p>
+                        <label for="protecta">
+                            <div class="tipo-icon">🛡️</div>
+                            Protecta
+                        </label>
                     </div>
-                    <div class="tipo-option" onclick="selectTipo('positiva')">
+                    <div class="tipo-option">
                         <input type="radio" id="positiva" name="tipo_soat" value="positiva" required>
-                        <h3>➕ POSITIVA</h3>
-                        <p>Seguro Positiva</p>
+                        <label for="positiva">
+                            <div class="tipo-icon">⚡</div>
+                            Positiva
+                        </label>
                     </div>
                 </div>
             </div>
 
-            <!-- Upload de PDF -->
             <div class="form-group">
-                <label for="pdf_file"><span class="icon">📄</span>Archivo PDF del SOAT:</label>
+                <label for="pdf_file">Archivo PDF del SOAT:</label>
                 <input type="file" id="pdf_file" name="pdf_file" accept=".pdf" required>
-                <div class="file-info">Selecciona el archivo PDF que quieres editar</div>
             </div>
-            
-            <!-- Campo de monto -->
+
             <div class="form-group">
-                <label for="monto"><span class="icon">💰</span>Ingrese monto:</label>
-                <input type="text" id="monto" name="monto" class="monto-input" 
-                       placeholder="Ej: 25, 123, 170.50" required 
-                       pattern="[0-9]+(\.[0-9]{1,2})?" 
-                       title="Solo números y decimales (ej: 25, 123, 170.50)">
-                <div class="file-info">Ingresa números (se descompondrán en dígitos individuales)</div>
+                <label for="monto">Monto (máximo 3 dígitos):</label>
+                <input type="text" id="monto" name="monto" placeholder="Ej: 170, 25, 456" maxlength="3">
             </div>
-            
-            <!-- Botón de inicio -->
-            <button type="submit" id="submitBtn" class="btn">
-                <span class="icon">🚀</span>Procesar SOAT
-            </button>
+
+            <!-- Casilla para SIN MONTO -->
+            <div class="checkbox-group">
+                <input type="checkbox" id="sin_monto" name="sin_monto">
+                <label for="sin_monto">Procesar SIN MONTO (usar imagen sin-monto.jpg)</label>
+            </div>
+
+            <!-- Solo un botón de procesar -->
+            <div class="button-group">
+                <button type="button" class="btn btn-primary" onclick="procesar()">
+                    Procesar
+                </button>
+            </div>
         </form>
-        
-        <!-- Loading -->
-        <div class="loading" id="loading">
-            <div class="loading-spinner"></div>
-            <p>Procesando tu SOAT... Por favor espera</p>
+
+        <div id="loading" class="loading" style="display: none;">
+            Procesando documento...
         </div>
-        
-        <!-- Mensajes -->
-        <div id="message-container"></div>
-        
-        <!-- Resultado y descarga -->
-        <div class="resultado" id="resultado">
-            <img id="imagen-resultado" src="" alt="SOAT procesado">
-            
-            <!-- Botones de descarga -->
-            <div class="download-buttons" id="download-buttons">
-                <button type="button" class="btn btn-download" id="btnDescargarJPG" onclick="descargarJPG()">
-                    <span class="icon">️</span>Descargar JPG
-                </button>
-                <button type="button" class="btn btn-download btn-download-pdf" id="btnDescargarPDF" onclick="descargarPDF()">
-                    <span class="icon">📄</span>Descargar PDF
-                </button>
-            </div>
+
+        <div id="result" class="result-container">
+            <div id="resultContent"></div>
         </div>
     </div>
 
     <script>
-        function selectTipo(tipo) {
-            // Remover selección previa
-            document.querySelectorAll('.tipo-option').forEach(option => {
-                option.classList.remove('selected');
-            });
+        function procesar() {
+            const form = document.getElementById('soatForm');
+            const formData = new FormData(form);
+            const sinMontoCheckbox = document.getElementById('sin_monto');
             
-            // Seleccionar nuevo tipo
-            document.getElementById(tipo).checked = true;
-            event.target.closest('.tipo-option').classList.add('selected');
+            // Determinar qué endpoint usar basado en el checkbox
+            let endpoint;
+            if (sinMontoCheckbox.checked) {
+                formData.set('sin_monto', 'true');
+                endpoint = '/procesar_soat_sin_monto';
+            } else {
+                formData.delete('sin_monto');
+                endpoint = '/procesar_soat';
+            }
+            
+            procesarSOAT(formData, endpoint);
         }
 
-        // Validación del campo monto en tiempo real
-        document.getElementById('monto').addEventListener('input', function(e) {
-            let valor = e.target.value;
-            // Remover caracteres que no sean números, puntos o comas
-            valor = valor.replace(/[^0-9.,]/g, '');
-            // Reemplazar comas por puntos
-            valor = valor.replace(',', '.');
-            // Asegurar solo un punto decimal
-            const partes = valor.split('.');
-            if (partes.length > 2) {
-                valor = partes[0] + '.' + partes.slice(1).join('');
-            }
-            e.target.value = valor;
-        });
-
-        // Validación de archivo PDF
-        document.getElementById('pdf_file').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file && !file.type.includes('pdf')) {
-                alert('⚠️ Por favor, selecciona un archivo PDF válido');
-                this.value = '';
-            }
-        });
-
-        // Envío del formulario
-        document.getElementById('procesarForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
+        function procesarSOAT(formData, endpoint) {
             const loading = document.getElementById('loading');
-            const resultado = document.getElementById('resultado');
-            const messageContainer = document.getElementById('message-container');
-            const submitBtn = document.getElementById('submitBtn');
-            const downloadButtons = document.getElementById('download-buttons');
+            const result = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
             
-            // Limpiar mensajes previos
-            messageContainer.innerHTML = '';
-            resultado.style.display = 'none';
-            downloadButtons.style.display = 'none';
+            // Mostrar loading
             loading.style.display = 'block';
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="icon">⏳</span>Procesando...';
+            result.style.display = 'none';
             
-            try {
-                const formData = new FormData(this);
-                
-                const response = await fetch('/procesar_soat', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
+            fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
                 
                 if (data.success) {
-                    document.getElementById('imagen-resultado').src = data.imagen_resultado;
-                    resultado.style.display = 'block';
-                    downloadButtons.style.display = 'block';
-                    
-                    messageContainer.innerHTML = `<div class="message success">✅ ${data.message}</div>`;
+                    mostrarResultado(data);
                 } else {
-                    throw new Error(data.error || 'Error desconocido');
+                    mostrarError(data.error);
+                }
+            })
+            .catch(error => {
+                loading.style.display = 'none';
+                mostrarError('Error del servidor: ' + error.message);
+            });
+        }
+
+        function mostrarResultado(data) {
+            const result = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            let html = `
+                <div class="success">
+                    <strong>✅ ${data.message}</strong>
+                </div>
+                
+                <img src="${data.imagen_resultado}" alt="Resultado SOAT" class="result-image">
+            `;
+            
+            // Mostrar botones de descarga si están disponibles
+            if (data.pdf_disponible || data.archivo_resultado) {
+                html += `
+                    <div class="download-buttons">
+                `;
+                
+                if (data.archivo_resultado) {
+                    html += `
+                        <a href="/descargar_jpg" class="download-btn" download>
+                            📥 Descargar JPG
+                        </a>
+                    `;
                 }
                 
-            } catch (error) {
-                messageContainer.innerHTML = `<div class="message error">❌ Error: ${error.message}</div>`;
-            } finally {
-                loading.style.display = 'none';
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<span class="icon">🚀</span>Procesar SOAT';
+                if (data.pdf_disponible) {
+                    html += `
+                        <a href="/descargar_pdf" class="download-btn" download>
+                            📄 Descargar PDF
+                        </a>
+                    `;
+                }
+                
+                html += `</div>`;
             }
-        });
-
-        function descargarJPG() {
-            window.location.href = '/descargar_jpg';
-        }
-
-        function descargarPDF() {
-            window.location.href = '/descargar_pdf';
-        }
-
-        // Efecto de entrada
-        window.addEventListener('load', function() {
-            document.querySelector('.container').style.opacity = '0';
-            document.querySelector('.container').style.transform = 'translateY(30px)';
             
-            setTimeout(() => {
-                document.querySelector('.container').style.transition = 'all 0.5s ease';
-                document.querySelector('.container').style.opacity = '1';
-                document.querySelector('.container').style.transform = 'translateY(0)';
-            }, 100);
+            resultContent.innerHTML = html;
+            result.style.display = 'block';
+        }
+
+        function mostrarError(mensaje) {
+            const result = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            
+            resultContent.innerHTML = `
+                <div class="error">
+                    <strong>❌ Error:</strong> ${mensaje}
+                </div>
+            `;
+            
+            result.style.display = 'block';
+        }
+
+        // Deshabilitar campo monto cuando se selecciona sin monto
+        document.getElementById('sin_monto').addEventListener('change', function() {
+            const montoField = document.getElementById('monto');
+            if (this.checked) {
+                montoField.disabled = true;
+                montoField.value = '';
+            } else {
+                montoField.disabled = false;
+            }
         });
     </script>
 </body>

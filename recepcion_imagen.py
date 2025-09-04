@@ -140,6 +140,105 @@ def procesar_soat():
     except Exception as e:
         return jsonify({'error': f'Error del servidor: {str(e)}'}), 500
 
+@app.route('/procesar_soat_sin_monto', methods=['POST'])
+def procesar_soat_sin_monto():
+    """Procesa el SOAT SIN monto - solo pega la imagen sin-monto.jpg"""
+    try:
+        # Recibir datos del formulario
+        archivo_pdf = request.files.get('pdf_file')
+        tipo_soat = request.form.get('tipo_soat')
+        
+        # Parámetros opcionales para mejoras
+        aplicar_mejoras = request.form.get('aplicar_mejoras', 'true').lower() == 'true'
+        factor_brillo = float(request.form.get('factor_brillo', '1.3'))
+        dpi_conversion = int(request.form.get('dpi', '300'))
+        generar_pdf = request.form.get('generar_pdf', 'true').lower() == 'true'
+        
+        # Validaciones básicas
+        if not archivo_pdf:
+            return jsonify({'error': 'No se subió ningún archivo PDF'}), 400
+            
+        if not tipo_soat or tipo_soat not in ['protecta', 'positiva']:
+            return jsonify({'error': 'Debe seleccionar el tipo de SOAT (Protecta o Positiva)'}), 400
+        
+        # Validar parámetros de mejora
+        if factor_brillo < 0.5 or factor_brillo > 2.0:
+            factor_brillo = 1.3  # Valor por defecto
+            
+        if dpi_conversion < 150 or dpi_conversion > 600:
+            dpi_conversion = 300  # Valor por defecto
+        
+        # Guardar archivo PDF temporalmente
+        pdf_filename = secure_filename(archivo_pdf.filename)
+        pdf_temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{pdf_filename}")
+        archivo_pdf.save(pdf_temp_path)
+        
+        # Actualizar archivo PDF correspondiente
+        if not processor.actualizar_archivo_pdf(tipo_soat, pdf_temp_path):
+            return jsonify({'error': f'No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.'}), 500
+        
+        # Procesar SOAT SIN MONTO
+        resultado_filename = f"resultado_{tipo_soat}_SIN_MONTO_{pdf_filename.replace('.pdf', '.jpg')}"
+        resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], resultado_filename)
+        
+        # Usar la nueva función de procesamiento SIN MONTO
+        resultado = processor.procesar_soat_sin_monto(
+            tipo_soat=tipo_soat,
+            archivo_salida=resultado_path,
+            aplicar_mejoras=aplicar_mejoras,
+            factor_brillo=factor_brillo,
+            dpi_conversion=dpi_conversion,
+            redimensionar_final=True,
+            ancho_final=1694,
+            alto_final=3300,
+            generar_pdf=True
+        )
+        
+        # Limpiar archivo temporal
+        try:
+            os.remove(pdf_temp_path)
+        except:
+            pass  # No importa si no se puede eliminar
+        
+        if resultado['success']:
+            # Obtener la imagen resultado del procesamiento
+            imagen_resultado = resultado['imagen_resultado']
+            
+            # Convertir la imagen a base64 para mostrar en el frontend
+            _, buffer = cv2.imencode('.jpg', imagen_resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            img_base64 = base64.b64encode(buffer).decode('utf-8')
+            
+            # Información detallada del procesamiento
+            info_procesamiento = {
+                'mejoras_aplicadas': resultado.get('mejoras_aplicadas', False),
+                'factor_brillo_usado': factor_brillo,
+                'dpi_usado': dpi_conversion,
+                'imagen_origen': resultado.get('imagen_origen', 'sin-monto.jpg (posición fija)'),
+                'posicion_pegado': resultado.get('posicion_pegado', 'N/A'),
+                'pdf_generado': resultado.get('archivo_pdf') is not None
+            }
+            
+            return jsonify({
+                'success': True,
+                'imagen_resultado': f"data:image/jpeg;base64,{img_base64}",
+                'message': resultado['mensaje'],
+                'tipo_soat': resultado['tipo_soat'],
+                'monto': 'SIN-MONTO',
+                'empresa': resultado['tipo_soat'].upper(),
+                'dimensiones_finales': resultado.get('dimensiones_finales', 'N/A'),
+                'archivo_resultado': resultado_filename,
+                'archivo_pdf': resultado.get('archivo_pdf'),
+                'pdf_disponible': resultado.get('archivo_pdf') is not None,
+                'info_procesamiento': info_procesamiento
+            })
+        else:
+            return jsonify({'error': resultado['error']}), 400
+        
+    except ValueError as ve:
+        return jsonify({'error': f'Error en los parámetros: {str(ve)}'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Error del servidor: {str(e)}'}), 500
+
 @app.route('/listar_imagenes_disponibles')
 def listar_imagenes_disponibles():
     """Lista todas las imágenes disponibles en el sistema con sus números"""

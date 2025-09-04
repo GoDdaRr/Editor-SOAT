@@ -816,6 +816,137 @@ class SOATProcessor:
         except Exception as e:
             return {'success': False, 'error': f'Error interno: {str(e)}'}
 
+    def procesar_soat_sin_monto(self, 
+                                tipo_soat: str,
+                                archivo_salida: str = "resultado_sin_monto.jpg",
+                                aplicar_mejoras: bool = True,
+                                factor_brillo: float = 1.3,
+                                dpi_conversion: int = 300,
+                                redimensionar_final: bool = False,
+                                ancho_final: int = 1694,
+                                alto_final: int = 3300,
+                                generar_pdf: bool = True) -> dict:
+        """
+        Procesa SOAT SIN monto - solo pega la imagen "sin-monto.jpg" en posición fija
+        
+        Args:
+            tipo_soat: 'protecta' o 'positiva'
+            archivo_salida: Archivo de salida (JPG)
+            aplicar_mejoras: Aplicar mejoras de calidad
+            factor_brillo: Factor de brillo
+            dpi_conversion: DPI de conversión
+            redimensionar_final: Redimensionar imagen final
+            ancho_final: Ancho objetivo
+            alto_final: Alto objetivo
+            generar_pdf: Si generar también versión PDF
+            
+        Returns:
+            dict: Resultado del procesamiento
+        """
+        try:
+            print(f"[INFO] Iniciando procesamiento de SOAT SIN MONTO para tipo: {tipo_soat}")
+            
+            # 1. Convertir PDF a imagen CON MEJORAS
+            fondo = self.pdf_to_image_mejorada(tipo_soat, dpi_conversion, aplicar_mejoras, factor_brillo)
+            if fondo is None:
+                return {'success': False, 'error': f'No se pudo procesar el PDF de {tipo_soat}'}
+            
+            # 2. Redimensionar fondo si está habilitado
+            dimensiones_originales = f'{fondo.shape[1]}x{fondo.shape[0]}'
+            
+            if redimensionar_final:
+                print(f"[INFO] Redimensionando fondo a {ancho_final}x{alto_final}...")
+                fondo = self.redimensionar_resultado_final(fondo, ancho_final, alto_final)
+                self.guardar_imagen_intermedia(fondo, "fondo_redimensionado_sin_monto", tipo_soat)
+                
+                # Aplicar saturación a región específica
+                if aplicar_mejoras:
+                    print("[INFO] Aplicando saturación a región específica del fondo...")
+                    fondo = self.saturar_region_rectangulo(fondo, 35, 2525, 1661, 2780, 1.6)
+                    self.guardar_imagen_intermedia(fondo, "fondo_region_saturada_sin_monto", tipo_soat)
+            
+            # 3. Buscar y cargar imagen "sin-monto.jpg"
+            ruta_sin_monto = self.buscar_imagen_por_numero("sin-monto")
+            if not ruta_sin_monto:
+                # Buscar específicamente en assets
+                ruta_sin_monto = os.path.join("assets", "sin-monto.jpg")
+                if not os.path.exists(ruta_sin_monto):
+                    return {'success': False, 'error': 'No se encontró la imagen "sin-monto.jpg" en la carpeta assets'}
+            
+            imagen_sin_monto = cv2.imread(ruta_sin_monto)
+            if imagen_sin_monto is None:
+                return {'success': False, 'error': f'No se pudo cargar la imagen: {ruta_sin_monto}'}
+            
+            print(f"[OK] Imagen sin-monto encontrada: {ruta_sin_monto}")
+            self.guardar_imagen_intermedia(imagen_sin_monto, "sin_monto_original", tipo_soat)
+            
+            # 4. Configuración de posición fija para "sin-monto.jpg"
+            posiciones_sin_monto = {
+                'protecta': {'x': 847, 'y': 1663},   # Posición fija para Protecta
+                'positiva': {'x': 847, 'y': 1663}    # Posición fija para Positiva
+            }
+            
+            # 5. Obtener posición fija
+            if tipo_soat not in posiciones_sin_monto:
+                return {'success': False, 'error': f'Tipo de SOAT no válido: {tipo_soat}'}
+            
+            x_posicion = posiciones_sin_monto[tipo_soat]['x']
+            y_posicion = posiciones_sin_monto[tipo_soat]['y']
+            
+            # 6. Verificar límites
+            h_sin_monto, w_sin_monto = imagen_sin_monto.shape[:2]
+            h_fondo, w_fondo = fondo.shape[:2]
+            
+            print(f"[INFO] Pegando sin-monto de {w_sin_monto}x{h_sin_monto} en posición fija ({x_posicion},{y_posicion})")
+            
+            if x_posicion + w_sin_monto > w_fondo or y_posicion + h_sin_monto > h_fondo:
+                print(f"[ERROR] Imagen sin-monto se sale de los límites. Fondo: {w_fondo}x{h_fondo}")
+                return {'success': False, 'error': f'La imagen sin-monto se sale de los límites. Fondo: {w_fondo}x{h_fondo}, Imagen: {w_sin_monto}x{h_sin_monto}'}
+            
+            # 7. Pegar imagen "sin-monto" en posición fija
+            resultado = fondo.copy()
+            resultado[y_posicion:y_posicion+h_sin_monto, x_posicion:x_posicion+w_sin_monto] = imagen_sin_monto
+            
+            print(f"[OK] Imagen sin-monto pegada en posición fija ({x_posicion},{y_posicion})")
+            
+            # 8. Guardar imagen intermedia del resultado
+            self.guardar_imagen_intermedia(resultado, "resultado_final_sin_monto", tipo_soat)
+            
+            # 9. Guardar la imagen final
+            cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            
+            # 10. Generar PDF si está habilitado
+            archivo_pdf = None
+            if generar_pdf:
+                pdf_path = archivo_salida.replace('.jpg', '.pdf')
+                if self.convertir_imagen_a_pdf(archivo_salida, pdf_path):
+                    archivo_pdf = pdf_path
+                    print(f"[OK] PDF generado: {pdf_path}")
+                else:
+                    print(f"[WARNING] No se pudo generar el PDF")
+            
+            return {
+                'success': True,
+                'mensaje': f'SOAT {tipo_soat.upper()} procesado correctamente SIN MONTO',
+                'tipo_soat': tipo_soat,
+                'numero': 'SIN-MONTO',
+                'ruta_imagen_usada': ruta_sin_monto,
+                'mejoras_aplicadas': aplicar_mejoras,
+                'factor_brillo_usado': factor_brillo,
+                'dpi_usado': dpi_conversion,
+                'imagen_origen': 'sin-monto.jpg (posición fija)',
+                'dimensiones_originales': dimensiones_originales,
+                'dimensiones_finales': f'{resultado.shape[1]}x{resultado.shape[0]}',
+                'redimensionado': redimensionar_final,
+                'posicion_pegado': f'({x_posicion},{y_posicion})',
+                'archivo_salida': archivo_salida,
+                'archivo_pdf': archivo_pdf,
+                'imagen_resultado': resultado
+            }
+            
+        except Exception as e:
+            return {'success': False, 'error': f'Error interno procesando sin monto: {str(e)}'}
+
 def main():
     """Funcion principal para ejecutar directamente el script"""
     processor = SOATProcessor()
