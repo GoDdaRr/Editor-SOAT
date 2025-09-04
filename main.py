@@ -5,6 +5,7 @@ import os
 import glob
 from typing import Tuple, Optional, List
 import shutil
+from PIL import Image  # Agregar PIL para conversión a PDF
 
 class SOATProcessor:
     def __init__(self):
@@ -226,6 +227,35 @@ class SOATProcessor:
         
         return imagenes_encontradas, digitos_no_encontrados
 
+    def convertir_imagen_a_pdf(self, imagen_path: str, pdf_path: str) -> bool:
+        """
+        Convierte una imagen a formato PDF
+        
+        Args:
+            imagen_path: Ruta de la imagen a convertir
+            pdf_path: Ruta donde guardar el PDF
+            
+        Returns:
+            bool: True si la conversión fue exitosa
+        """
+        try:
+            # Abrir la imagen
+            imagen = Image.open(imagen_path)
+            
+            # Convertir a RGB si es necesario (para compatibilidad con PDF)
+            if imagen.mode != 'RGB':
+                imagen = imagen.convert('RGB')
+            
+            # Guardar como PDF
+            imagen.save(pdf_path, 'PDF', resolution=300.0, quality=95)
+            
+            print(f"[OK] Imagen convertida a PDF: {pdf_path}")
+            return True
+            
+        except Exception as e:
+            print(f"[ERROR] Error convirtiendo imagen a PDF: {e}")
+            return False
+
     def procesar_soat_con_digitos(self, 
                                 tipo_soat: str,
                                 numero: str,
@@ -235,7 +265,8 @@ class SOATProcessor:
                                 dpi_conversion: int = 300,
                                 redimensionar_final: bool = False,
                                 ancho_final: int = 1694,
-                                alto_final: int = 3300) -> dict:
+                                alto_final: int = 3300,
+                                generar_pdf: bool = True) -> dict:
         """
         NUEVA FUNCIONALIDAD: Procesa SOAT descomponiendo el número en dígitos individuales
         y pegando cada imagen en posiciones fijas predefinidas
@@ -243,13 +274,14 @@ class SOATProcessor:
         Args:
             tipo_soat: 'protecta' o 'positiva'
             numero: Número a procesar (máximo 3 dígitos)
-            archivo_salida: Archivo de salida
+            archivo_salida: Archivo de salida (JPG)
             aplicar_mejoras: Aplicar mejoras de calidad
             factor_brillo: Factor de brillo
             dpi_conversion: DPI de conversión
             redimensionar_final: Redimensionar imagen final
             ancho_final: Ancho objetivo
             alto_final: Alto objetivo
+            generar_pdf: Si generar también versión PDF
             
         Returns:
             dict: Resultado del procesamiento
@@ -300,7 +332,6 @@ class SOATProcessor:
                     self.guardar_imagen_intermedia(fondo, "fondo_region_saturada", tipo_soat)
             
             # 5. Configuración de posiciones fijas para cada dígito
-            # Estas coordenadas las puedes ajustar manualmente según tus necesidades
             posiciones_digitos = {
                 'protecta': {
                     0: {'x': 940, 'y': 1771},   # Primer dígito (más a la izquierda)
@@ -365,8 +396,18 @@ class SOATProcessor:
             # 7. Guardar imagen intermedia del resultado
             self.guardar_imagen_intermedia(resultado, "resultado_final_con_digitos", tipo_soat)
             
-            # 8. Guardar resultado final
+            # 8. Guardar resultado final como JPG
             cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            
+            # 9. NUEVO: Generar PDF si está habilitado
+            archivo_pdf = None
+            if generar_pdf:
+                pdf_path = archivo_salida.replace('.jpg', '.pdf')
+                if self.convertir_imagen_a_pdf(archivo_salida, pdf_path):
+                    archivo_pdf = pdf_path
+                    print(f"[OK] PDF generado: {pdf_path}")
+                else:
+                    print(f"[WARNING] No se pudo generar el PDF")
             
             return {
                 'success': True,
@@ -385,6 +426,7 @@ class SOATProcessor:
                 'dimensiones_finales': f'{resultado.shape[1]}x{resultado.shape[0]}',
                 'redimensionado': redimensionar_final,
                 'archivo_salida': archivo_salida,
+                'archivo_pdf': archivo_pdf,  # NUEVO: Ruta del PDF generado
                 'imagen_resultado': resultado
             }
             

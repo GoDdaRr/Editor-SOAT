@@ -151,10 +151,29 @@
         .btn-download {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             display: none;
+            width: 48%;
+            margin: 5px 1%;
         }
 
         .btn-download:hover {
             box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-download-pdf {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+
+        .btn-download-pdf:hover {
+            box-shadow: 0 10px 20px rgba(220, 53, 69, 0.3);
+        }
+
+        .download-buttons {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .download-buttons.show {
+            display: block;
         }
 
         .loading {
@@ -257,6 +276,16 @@
             font-size: 0.9rem;
             color: #666;
         }
+
+        .format-info {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+            color: #1565c0;
+        }
     </style>
 </head>
 <body>
@@ -324,9 +353,20 @@
                 <div id="digitos-list"></div>
             </div>
             
-            <button type="button" class="btn btn-download" id="btnDescargar" onclick="descargarResultado()">
-                <span class="icon">💾</span>Descargar SOAT Editado
-            </button>
+            <!-- Información de formatos disponibles -->
+            <div class="format-info" id="format-info" style="display: none;">
+                <strong>📁 Formatos disponibles:</strong> El resultado se ha guardado en ambos formatos para tu comodidad.
+            </div>
+            
+            <!-- Botones de descarga -->
+            <div class="download-buttons" id="download-buttons">
+                <button type="button" class="btn btn-download" id="btnDescargarJPG" onclick="descargarJPG()">
+                    <span class="icon">🖼️</span>Descargar JPG
+                </button>
+                <button type="button" class="btn btn-download btn-download-pdf" id="btnDescargarPDF" onclick="descargarPDF()">
+                    <span class="icon">📄</span>Descargar PDF
+                </button>
+            </div>
         </div>
     </div>
 
@@ -403,12 +443,14 @@
             const resultado = document.getElementById('resultado');
             const messageContainer = document.getElementById('message-container');
             const submitBtn = document.getElementById('submitBtn');
-            const btnDescargar = document.getElementById('btnDescargar');
+            const downloadButtons = document.getElementById('download-buttons');
+            const formatInfo = document.getElementById('format-info');
             
             // Limpiar mensajes previos
             messageContainer.innerHTML = '';
             resultado.style.display = 'none';
-            btnDescargar.style.display = 'none';
+            downloadButtons.style.display = 'none';
+            formatInfo.style.display = 'none';
             loading.style.display = 'block';
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="icon">⏳</span>Procesando...';
@@ -426,7 +468,12 @@
                 if (data.success) {
                     document.getElementById('imagen-resultado').src = data.imagen_resultado;
                     resultado.style.display = 'block';
-                    btnDescargar.style.display = 'block';
+                    downloadButtons.classList.add('show');
+                    
+                    // Mostrar información de formatos si PDF está disponible
+                    if (data.pdf_disponible) {
+                        formatInfo.style.display = 'block';
+                    }
                     
                     // Mostrar información de dígitos si está disponible
                     if (data.digitos && data.imagenes_pegadas) {
@@ -447,8 +494,12 @@
             }
         });
 
-        function descargarResultado() {
-            window.location.href = '/descargar_resultado';
+        function descargarJPG() {
+            window.location.href = '/descargar_jpg';
+        }
+
+        function descargarPDF() {
+            window.location.href = '/descargar_pdf';
         }
 
         // Efecto de entrada

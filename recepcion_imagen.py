@@ -36,6 +36,7 @@ def procesar_soat():
         aplicar_mejoras = request.form.get('aplicar_mejoras', 'true').lower() == 'true'
         factor_brillo = float(request.form.get('factor_brillo', '1.15'))
         dpi_conversion = int(request.form.get('dpi', '300'))
+        generar_pdf = request.form.get('generar_pdf', 'true').lower() == 'true'  # NUEVO
         
         # Validaciones básicas
         if not archivo_pdf:
@@ -81,7 +82,8 @@ def procesar_soat():
             dpi_conversion=dpi_conversion,
             redimensionar_final=True,
             ancho_final=1694,
-            alto_final=3300
+            alto_final=3300,
+            generar_pdf=generar_pdf  # NUEVO: Pasar parámetro de PDF
         )
         
         # Limpiar archivo temporal
@@ -104,7 +106,8 @@ def procesar_soat():
                 'imagen_origen': resultado.get('imagen_origen', 'descompuesto en dígitos con posiciones fijas'),
                 'total_digitos': resultado.get('total_digitos', 0),
                 'digitos_procesados': resultado.get('digitos', []),
-                'posiciones_utilizadas': resultado.get('posiciones_utilizadas', {})
+                'posiciones_utilizadas': resultado.get('posiciones_utilizadas', {}),
+                'pdf_generado': resultado.get('archivo_pdf') is not None
             }
             
             return jsonify({
@@ -120,6 +123,8 @@ def procesar_soat():
                 'posiciones_utilizadas': resultado.get('posiciones_utilizadas', {}),
                 'dimensiones_finales': resultado.get('dimensiones_finales', 'N/A'),
                 'archivo_resultado': resultado_filename,
+                'archivo_pdf': resultado.get('archivo_pdf'),  # NUEVO: Ruta del PDF
+                'pdf_disponible': resultado.get('archivo_pdf') is not None,  # NUEVO: Si PDF está disponible
                 'info_procesamiento': info_procesamiento
             })
         else:
