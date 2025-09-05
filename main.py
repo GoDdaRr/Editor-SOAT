@@ -15,19 +15,17 @@ class SOATProcessor:
         
         # Configuración de poppler - USAR SISTEMA
         import os
-        # Verificar si poppler está en el PATH del sistema
         import shutil
+        
+        # Verificar si poppler está en el PATH del sistema
         poppler_system = shutil.which('pdftoppm')
         
         if poppler_system:
             print(f"[INFO] Usando poppler del sistema: {poppler_system}")
             self.poppler_path = None  # None = usar PATH del sistema
         else:
-            # Fallback a ruta local si existe
-            self.poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
-            if not os.path.exists(self.poppler_path):
-                print(f"[ERROR] Poppler no encontrado ni en sistema ni en {self.poppler_path}")
-                self.poppler_path = None
+            print("[ERROR] Poppler no encontrado en el sistema")
+            self.poppler_path = None  # Intentar de todas formas
         
         # Extensiones de imagen soportadas
         self.extensiones_imagen = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']
@@ -535,9 +533,28 @@ class SOATProcessor:
             if not os.path.exists(archivo_pdf):
                 raise FileNotFoundError(f"No se encuentra el archivo: {archivo_pdf}")
             
+            # DEBUG: Información detallada
+            print(f"[DEBUG] Poppler path configurado: {self.poppler_path}")
+            print(f"[DEBUG] Archivo PDF: {archivo_pdf}")
+            print(f"[DEBUG] DPI: {dpi}")
+            
+            # Verificar poppler manualmente
+            import subprocess
+            try:
+                if self.poppler_path:
+                    result = subprocess.run([os.path.join(self.poppler_path, 'pdftoppm'), '-h'], 
+                                          capture_output=True, text=True, timeout=5)
+                else:
+                    result = subprocess.run(['pdftoppm', '-h'], 
+                                          capture_output=True, text=True, timeout=5)
+                print(f"[DEBUG] Poppler test exitoso: {result.returncode}")
+            except Exception as e:
+                print(f"[DEBUG] Error probando poppler: {e}")
+            
             # Convertir PDF a imagen
+            print(f"[DEBUG] Iniciando conversión PDF...")
             pages = convert_from_path(archivo_pdf, dpi=dpi, poppler_path=self.poppler_path)
-            page = pages[0]  # Tomar la primera pagina
+            print(f"[DEBUG] Conversión exitosa, páginas obtenidas: {len(pages)}")
             
             # Convertir a formato OpenCV
             imagen_cv = cv2.cvtColor(np.array(page), cv2.COLOR_RGB2BGR)
