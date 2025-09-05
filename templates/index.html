@@ -382,18 +382,30 @@
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                // Verificar si la respuesta es JSON
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // Si no es JSON, obtener el texto de la respuesta
+                    return response.text().then(text => {
+                        throw new Error(`El servidor devolvió HTML en lugar de JSON. Respuesta: ${text.substring(0, 200)}...`);
+                    });
+                }
+            })
             .then(data => {
                 loading.style.display = 'none';
                 
                 if (data.success) {
                     mostrarResultado(data);
                 } else {
-                    mostrarError(data.error);
+                    mostrarError(data.error || 'Error desconocido del servidor');
                 }
             })
             .catch(error => {
                 loading.style.display = 'none';
+                console.error('Error completo:', error);
                 mostrarError('Error del servidor: ' + error.message);
             });
         }

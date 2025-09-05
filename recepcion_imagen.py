@@ -8,6 +8,9 @@ import cv2
 # Importar nuestro procesador desde main.py
 from main import SOATProcessor
 
+# Agregar datetime para timestamps
+import datetime
+
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
@@ -18,6 +21,17 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Instancia del procesador SOAT
 processor = SOATProcessor()
 
+def log_with_timestamp(level: str, message: str):
+    """
+    Función personalizada para logging con timestamp en Flask
+    
+    Args:
+        level: Nivel del log (INFO, OK, ERROR, WARNING, DEBUG, SAVE)
+        message: Mensaje a mostrar
+    """
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] [{level}] {message}")
+
 @app.route('/')
 def index():
     """Página principal con el formulario simplificado"""
@@ -27,29 +41,53 @@ def index():
 def procesar_soat():
     """Procesa el SOAT con el monto ingresado usando la nueva funcionalidad de dígitos con posiciones fijas"""
     try:
+        log_with_timestamp("INFO", "=== INICIANDO PROCESAMIENTO SOAT ===")
+        log_with_timestamp("INFO", "Iniciando procesamiento de SOAT con monto")
+        
+        # DEBUG: Mostrar todos los datos recibidos
+        log_with_timestamp("DEBUG", f"Request method: {request.method}")
+        log_with_timestamp("DEBUG", f"Request content type: {request.content_type}")
+        log_with_timestamp("DEBUG", f"Request form keys: {list(request.form.keys())}")
+        log_with_timestamp("DEBUG", f"Request files keys: {list(request.files.keys())}")
+        
         # Recibir datos del formulario
         archivo_pdf = request.files.get('pdf_file')
         monto = request.form.get('monto', '').strip()
         tipo_soat = request.form.get('tipo_soat')
         
+        log_with_timestamp("INFO", f"Datos recibidos - PDF: {archivo_pdf.filename if archivo_pdf else 'None'}, Monto: {monto}, Tipo: {tipo_soat}")
+        
+        # DEBUG: Verificar si el archivo PDF está presente
+        if archivo_pdf:
+            log_with_timestamp("DEBUG", f"Archivo PDF presente - Nombre: {archivo_pdf.filename}, Tamaño: {archivo_pdf.content_length if hasattr(archivo_pdf, 'content_length') else 'N/A'}")
+        else:
+            log_with_timestamp("ERROR", "No se recibió archivo PDF en la petición")
+            return jsonify({'error': 'No se recibió archivo PDF en la petición'}), 400
+        
         # Parámetros opcionales para mejoras
         aplicar_mejoras = request.form.get('aplicar_mejoras', 'true').lower() == 'true'
         factor_brillo = float(request.form.get('factor_brillo', '1.15'))
         dpi_conversion = int(request.form.get('dpi', '300'))
-        generar_pdf = request.form.get('generar_pdf', 'true').lower() == 'true'  # NUEVO
+        generar_pdf = request.form.get('generar_pdf', 'true').lower() == 'true'
+        
+        log_with_timestamp("INFO", f"Parámetros - Mejoras: {aplicar_mejoras}, Brillo: {factor_brillo}, DPI: {dpi_conversion}, PDF: {generar_pdf}")
         
         # Validaciones básicas
         if not archivo_pdf:
+            log_with_timestamp("ERROR", "No se subió ningún archivo PDF")
             return jsonify({'error': 'No se subió ningún archivo PDF'}), 400
             
         if not monto:
+            log_with_timestamp("ERROR", "Debe ingresar un monto")
             return jsonify({'error': 'Debe ingresar un monto'}), 400
             
         if not tipo_soat or tipo_soat not in ['protecta', 'positiva']:
+            log_with_timestamp("ERROR", "Debe seleccionar el tipo de SOAT (Protecta o Positiva)")
             return jsonify({'error': 'Debe seleccionar el tipo de SOAT (Protecta o Positiva)'}), 400
         
         # Validar que el monto sea un número válido
         if not processor.validar_numero(monto):
+            log_with_timestamp("ERROR", f"El monto ingresado '{monto}' no es válido. Use solo números y decimales (ej: 170.00)")
             return jsonify({'error': 'El monto ingresado no es válido. Use solo números y decimales (ej: 170.00)'}), 400
         
         # Validar parámetros de mejora
@@ -62,15 +100,33 @@ def procesar_soat():
         # Guardar archivo PDF temporalmente
         pdf_filename = secure_filename(archivo_pdf.filename)
         pdf_temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{pdf_filename}")
-        archivo_pdf.save(pdf_temp_path)
+        log_with_timestamp("INFO", f"Guardando PDF temporal: {pdf_temp_path}")
+        
+        try:
+            archivo_pdf.save(pdf_temp_path)
+            log_with_timestamp("DEBUG", f"PDF guardado exitosamente en: {pdf_temp_path}")
+        except Exception as e:
+            log_with_timestamp("ERROR", f"Error guardando PDF: {str(e)}")
+            return jsonify({'error': f'Error guardando archivo PDF: {str(e)}'}), 500
+        
+        # Verificar que el archivo se guardó correctamente
+        if not os.path.exists(pdf_temp_path):
+            log_with_timestamp("ERROR", f"El archivo PDF no se guardó correctamente en: {pdf_temp_path}")
+            return jsonify({'error': 'Error guardando archivo PDF'}), 500
+        
+        log_with_timestamp("DEBUG", f"Archivo PDF verificado - Tamaño: {os.path.getsize(pdf_temp_path)} bytes")
         
         # Actualizar archivo PDF correspondiente
+        log_with_timestamp("INFO", f"Actualizando archivo PDF para {tipo_soat}")
         if not processor.actualizar_archivo_pdf(tipo_soat, pdf_temp_path):
+            log_with_timestamp("ERROR", f"No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.")
             return jsonify({'error': f'No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.'}), 500
         
         # Procesar SOAT con la nueva funcionalidad de dígitos
         resultado_filename = f"resultado_{tipo_soat}_{monto}_{pdf_filename.replace('.pdf', '.jpg')}"
         resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], resultado_filename)
+        
+        log_with_timestamp("INFO", f"Iniciando procesamiento con dígitos para {tipo_soat} - {monto}")
         
         # Usar la nueva función de procesamiento con dígitos y posiciones fijas
         resultado = processor.procesar_soat_con_digitos(
@@ -86,13 +142,17 @@ def procesar_soat():
             generar_pdf=True  # Asegurar que esté en True
         )
         
+        log_with_timestamp("INFO", f"Resultado del procesamiento: {resultado.get('success', False)}")
+        
         # Limpiar archivo temporal
         try:
             os.remove(pdf_temp_path)
+            log_with_timestamp("INFO", "Archivo temporal eliminado")
         except:
             pass  # No importa si no se puede eliminar
         
         if resultado['success']:
+            log_with_timestamp("OK", f"SOAT procesado exitosamente: {resultado['mensaje']}")
             # Obtener la imagen resultado del procesamiento
             imagen_resultado = resultado['imagen_resultado']
             
@@ -115,6 +175,8 @@ def procesar_soat():
                 'pdf_generado': resultado.get('archivo_pdf') is not None
             }
             
+            log_with_timestamp("OK", "=== PROCESAMIENTO COMPLETADO EXITOSAMENTE ===")
+            
             return jsonify({
                 'success': True,
                 'imagen_resultado': f"data:image/jpeg;base64,{img_base64}",
@@ -133,17 +195,23 @@ def procesar_soat():
                 'info_procesamiento': info_procesamiento
             })
         else:
+            log_with_timestamp("ERROR", f"Error procesando SOAT: {resultado['error']}")
             return jsonify({'error': resultado['error']}), 400
         
     except ValueError as ve:
+        log_with_timestamp("ERROR", f"Error en los parámetros: {str(ve)}")
         return jsonify({'error': f'Error en los parámetros: {str(ve)}'}), 400
     except Exception as e:
+        log_with_timestamp("ERROR", f"Error del servidor: {str(e)}")
+        import traceback
+        log_with_timestamp("ERROR", f"Traceback completo: {traceback.format_exc()}")
         return jsonify({'error': f'Error del servidor: {str(e)}'}), 500
 
 @app.route('/procesar_soat_sin_monto', methods=['POST'])
 def procesar_soat_sin_monto():
     """Procesa el SOAT SIN monto - solo pega la imagen sin-monto.jpg"""
     try:
+        log_with_timestamp("INFO", "Iniciando procesamiento de SOAT sin monto")
         # Recibir datos del formulario
         archivo_pdf = request.files.get('pdf_file')
         tipo_soat = request.form.get('tipo_soat')
@@ -156,9 +224,11 @@ def procesar_soat_sin_monto():
         
         # Validaciones básicas
         if not archivo_pdf:
+            log_with_timestamp("ERROR", "No se subió ningún archivo PDF")
             return jsonify({'error': 'No se subió ningún archivo PDF'}), 400
             
         if not tipo_soat or tipo_soat not in ['protecta', 'positiva']:
+            log_with_timestamp("ERROR", "Debe seleccionar el tipo de SOAT (Protecta o Positiva)")
             return jsonify({'error': 'Debe seleccionar el tipo de SOAT (Protecta o Positiva)'}), 400
         
         # Validar parámetros de mejora
@@ -175,6 +245,7 @@ def procesar_soat_sin_monto():
         
         # Actualizar archivo PDF correspondiente
         if not processor.actualizar_archivo_pdf(tipo_soat, pdf_temp_path):
+            log_with_timestamp("ERROR", f"No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.")
             return jsonify({'error': f'No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.'}), 500
         
         # Procesar SOAT SIN MONTO
@@ -201,6 +272,7 @@ def procesar_soat_sin_monto():
             pass  # No importa si no se puede eliminar
         
         if resultado['success']:
+            log_with_timestamp("OK", f"SOAT sin monto procesado exitosamente: {resultado['mensaje']}")
             # Obtener la imagen resultado del procesamiento
             imagen_resultado = resultado['imagen_resultado']
             
@@ -232,11 +304,14 @@ def procesar_soat_sin_monto():
                 'info_procesamiento': info_procesamiento
             })
         else:
+            log_with_timestamp("ERROR", f"Error procesando SOAT sin monto: {resultado['error']}")
             return jsonify({'error': resultado['error']}), 400
         
     except ValueError as ve:
+        log_with_timestamp("ERROR", f"Error en los parámetros: {str(ve)}")
         return jsonify({'error': f'Error en los parámetros: {str(ve)}'}), 400
     except Exception as e:
+        log_with_timestamp("ERROR", f"Error del servidor: {str(e)}")
         return jsonify({'error': f'Error del servidor: {str(e)}'}), 500
 
 @app.route('/listar_imagenes_disponibles')
@@ -262,6 +337,7 @@ def listar_imagenes_disponibles():
             })
             
     except Exception as e:
+        log_with_timestamp("ERROR", f"Error listando imágenes: {str(e)}")
         return jsonify({'error': f'Error listando imágenes: {str(e)}'}), 500
 
 @app.route('/validar_monto/<monto>')
@@ -299,6 +375,7 @@ def validar_monto(monto):
             })
             
     except Exception as e:
+        log_with_timestamp("ERROR", f"Error validando monto: {str(e)}")
         return jsonify({'error': f'Error validando monto: {str(e)}'}), 500
 
 @app.route('/configuracion_mejoras')
@@ -345,6 +422,7 @@ def descargar_resultado():
         return "Archivo no encontrado", 404
         
     except Exception as e:
+        log_with_timestamp("ERROR", f"Error descargando archivo: {str(e)}")
         return f"Error descargando archivo: {str(e)}", 500
 
 @app.route('/descargar_pdf')
@@ -367,6 +445,7 @@ def descargar_pdf():
         return "Archivo PDF no encontrado", 404
         
     except Exception as e:
+        log_with_timestamp("ERROR", f"Error descargando archivo PDF: {str(e)}")
         return f"Error descargando archivo PDF: {str(e)}", 500
 
 @app.route('/descargar_jpg')
@@ -389,6 +468,7 @@ def descargar_jpg():
         return "Archivo JPG no encontrado", 404
         
     except Exception as e:
+        log_with_timestamp("ERROR", f"Error descargando archivo JPG: {str(e)}")
         return f"Error descargando archivo JPG: {str(e)}", 500
 
 @app.route('/restaurar_archivos', methods=['POST'])
@@ -403,6 +483,7 @@ def restaurar_archivos():
             return jsonify(resultado), 400
             
     except Exception as e:
+        log_with_timestamp("ERROR", f"Error restaurando archivos: {str(e)}")
         return jsonify({'error': f'Error restaurando archivos: {str(e)}'}), 500
 
 @app.route('/estado_sistema')
@@ -438,12 +519,40 @@ def estado_sistema():
                 'numeros_disponibles': numeros_disponibles,
                 'imagenes_detalle': imagenes
             },
-            'archivos_resultado': archivos_resultado,
-            'configuracion': processor.configuracion
+            'archivos_resultado': archivos_resultado
+            # Removido: 'configuracion': processor.configuracion  # Esta línea causaba el error 500
         })
         
     except Exception as e:
+        log_with_timestamp("ERROR", f"Error obteniendo estado del sistema: {str(e)}")
         return jsonify({'error': f'Error obteniendo estado del sistema: {str(e)}'}), 500
+
+@app.route('/test')
+def test_endpoint():
+    """Endpoint de prueba simple"""
+    log_with_timestamp("INFO", "Endpoint de prueba llamado")
+    return jsonify({
+        'success': True,
+        'message': 'Servidor funcionando correctamente',
+        'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+@app.route('/test_post', methods=['POST'])
+def test_post():
+    """Endpoint de prueba para POST"""
+    log_with_timestamp("INFO", "Endpoint POST de prueba llamado")
+    log_with_timestamp("DEBUG", f"Request method: {request.method}")
+    log_with_timestamp("DEBUG", f"Request content type: {request.content_type}")
+    log_with_timestamp("DEBUG", f"Request form keys: {list(request.form.keys())}")
+    log_with_timestamp("DEBUG", f"Request files keys: {list(request.files.keys())}")
+    
+    return jsonify({
+        'success': True,
+        'message': 'POST funcionando correctamente',
+        'form_data': dict(request.form),
+        'files': list(request.files.keys()),
+        'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
 
 
 def obtener_ip_local():
@@ -482,12 +591,27 @@ if __name__ == '__main__':
     # Mostrar informacion de acceso
     mostrar_informacion_acceso()
     
-    # Iniciar servidor Flask para producción
+    # Configurar logging más detallado
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    
+    # Iniciar servidor Flask para debug
     try:
-        # Para producción, usar host='127.0.0.1' y debug=False
-        app.run(debug=False, host='127.0.0.1', port=5000)
+        log_with_timestamp("INFO", "Iniciando servidor Flask en puerto 5000")
+        print("=" * 60)
+        print("SERVIDOR FLASK INICIADO EN MODO DEBUG")
+        print("=" * 60)
+        print("Logs detallados habilitados")
+        print("Presiona Ctrl+C para detener el servidor")
+        print("=" * 60)
+        
+        # Para debug, usar debug=True para ver errores detallados
+        app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=False)
     except KeyboardInterrupt:
-        print("\n[STOP] Servidor detenido por el usuario")
+        log_with_timestamp("INFO", "Servidor detenido por el usuario")
     except Exception as e:
-        print(f"\n[ERROR] Error iniciando servidor: {e}")
+        log_with_timestamp("ERROR", f"Error iniciando servidor: {e}")
+        print(f"Error detallado: {e}")
+        import traceback
+        traceback.print_exc()
         
