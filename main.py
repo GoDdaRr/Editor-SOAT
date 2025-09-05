@@ -547,43 +547,47 @@ class SOATProcessor:
             if not os.path.exists(archivo_pdf):
                 raise FileNotFoundError(f"No se encuentra el archivo: {archivo_pdf}")
             
-            # FORZAR uso del poppler local con ruta absoluta
-            poppler_local = r"C:\Users\berpi\OneDrive\Escritorio\Proyectos\Editor-Soat\poppler\poppler-24.02.0\Library\bin"
-            print(f"[DEBUG] Usando poppler local: {poppler_local}")
-            print(f"[DEBUG] Directorio existe: {os.path.exists(poppler_local)}")
+            # USAR RUTA CORRECTA SEGÚN EL SISTEMA
+            import platform
+            sistema = platform.system().lower()
             
-            # Verificar que pdftoppm.exe existe
-            pdftoppm_exe = os.path.join(poppler_local, "pdftoppm.exe")
-            print(f"[DEBUG] pdftoppm.exe path: {pdftoppm_exe}")
-            print(f"[DEBUG] pdftoppm.exe existe: {os.path.exists(pdftoppm_exe)}")
+            if sistema == "windows":
+                # Windows: usar poppler local
+                poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
+                pdftoppm_exe = os.path.join(poppler_path, "pdftoppm.exe")
+            else:
+                # Linux: usar poppler del sistema
+                poppler_path = "/usr/bin"
+                pdftoppm_exe = os.path.join(poppler_path, "pdftoppm")
+            
+            print(f"[DEBUG] Sistema operativo: {sistema}")
+            print(f"[DEBUG] Usando poppler: {poppler_path}")
+            print(f"[DEBUG] Directorio existe: {os.path.exists(poppler_path)}")
+            print(f"[DEBUG] pdftoppm path: {pdftoppm_exe}")
+            print(f"[DEBUG] pdftoppm existe: {os.path.exists(pdftoppm_exe)}")
             
             if not os.path.exists(pdftoppm_exe):
-                print(f"[ERROR] pdftoppm.exe no encontrado en: {pdftoppm_exe}")
+                print(f"[ERROR] pdftoppm no encontrado en: {pdftoppm_exe}")
+                if sistema == "linux":
+                    print("[INFO] En Linux, ejecuta: sudo apt-get install poppler-utils")
                 return None
             
             # DEBUG: Información detallada
-            print(f"[DEBUG] Poppler path configurado: {self.poppler_path}")
             print(f"[DEBUG] Archivo PDF: {archivo_pdf}")
             print(f"[DEBUG] DPI: {dpi}")
             
             # Verificar poppler manualmente
             import subprocess
             try:
-                if self.poppler_path:
-                    pdftoppm_exe = os.path.join(self.poppler_path, "pdftoppm.exe")
-                    result = subprocess.run([pdftoppm_exe, '-h'], 
-                                          capture_output=True, text=True, timeout=5)
-                    print(f"[DEBUG] Poppler test exitoso: {result.returncode}")
-                else:
-                    result = subprocess.run(['pdftoppm', '-h'], 
-                                          capture_output=True, text=True, timeout=5)
-                    print(f"[DEBUG] Poppler test exitoso: {result.returncode}")
+                result = subprocess.run([pdftoppm_exe, '-h'], 
+                                      capture_output=True, text=True, timeout=5)
+                print(f"[DEBUG] Poppler test exitoso: {result.returncode}")
             except Exception as e:
                 print(f"[DEBUG] Error probando poppler: {e}")
             
             # Convertir PDF a imagen
             print(f"[DEBUG] Iniciando conversión PDF...")
-            pages = convert_from_path(archivo_pdf, dpi=dpi, poppler_path=poppler_local)
+            pages = convert_from_path(archivo_pdf, dpi=dpi, poppler_path=poppler_path)
             print(f"[DEBUG] Conversión exitosa, páginas obtenidas: {len(pages)}")
             
             page = pages[0]  # Tomar la primera pagina
