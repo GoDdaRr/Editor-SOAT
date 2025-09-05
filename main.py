@@ -13,8 +13,15 @@ class SOATProcessor:
         self.archivo_protecta = "Imagen-prueba-Protecta.pdf"
         self.archivo_positiva = "Imagen-prueba-Positiva.pdf"
         
-        # Configuración de poppler
-        self.poppler_path = "poppler/poppler-24.02.0/Library/bin"
+        # Configuración de poppler - RUTA ABSOLUTA
+        import os
+        self.poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
+        
+        # Verificar que existe
+        if not os.path.exists(self.poppler_path):
+            print(f"[WARNING] Poppler no encontrado en {self.poppler_path}")
+            print("[INFO] Usando poppler del sistema...")
+            self.poppler_path = None
         
         # Extensiones de imagen soportadas
         self.extensiones_imagen = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']

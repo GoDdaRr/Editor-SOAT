@@ -1,3 +1,17 @@
-opencv-python
-Pillow
-pyngrok
+# Dependencias principales del proyecto Editor SOAT
+
+# Flask y dependencias web
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Procesamiento de imágenes
+opencv-python==4.8.1.78
+Pillow==10.0.1
+numpy==1.24.3
+
+# Procesamiento de PDFs
+pdf2image==1.16.3
+PyMuPDF==1.23.8
+
+# Dependencias del sistema (opcionales pero recomendadas)
+python-magic==0.4.27

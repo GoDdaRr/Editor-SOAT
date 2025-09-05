@@ -482,10 +482,12 @@ if __name__ == '__main__':
     # Mostrar informacion de acceso
     mostrar_informacion_acceso()
     
-    # Iniciar servidor Flask
+    # Iniciar servidor Flask para producción
     try:
-        app.run(debug=True, host='0.0.0.0', port=5000)
+        # Para producción, usar host='127.0.0.1' y debug=False
+        app.run(debug=False, host='127.0.0.1', port=5000)
     except KeyboardInterrupt:
         print("\n[STOP] Servidor detenido por el usuario")
     except Exception as e:
         print(f"\n[ERROR] Error iniciando servidor: {e}")
+        
