@@ -14,7 +14,7 @@ class SOATProcessor:
         self.archivo_protecta = "Imagen-prueba-Protecta.pdf"
         self.archivo_positiva = "Imagen-prueba-Positiva.pdf"
         
-        # Configuración de poppler - RUTA GENERAL
+        # Configuración de poppler - RUTA ESPECÍFICA LINUX
         import os
         import shutil
         import platform
@@ -23,45 +23,23 @@ class SOATProcessor:
         sistema = platform.system().lower()
         print(f"[INFO] Sistema operativo detectado: {sistema}")
         
-        # Verificar si poppler está en el PATH del sistema
-        poppler_system = shutil.which('pdftoppm')
-        
-        if poppler_system:
-            print(f"[INFO] Usando poppler del sistema: {poppler_system}")
-            self.poppler_path = None  # None = usar PATH del sistema
-        else:
-            print("[WARNING] Poppler no encontrado en el PATH del sistema")
-            
-            # Intentar usar poppler local según el sistema
-            if sistema == "windows":
-                # Windows: usar poppler local
-                self.poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
-                if os.path.exists(self.poppler_path):
-                    print(f"[INFO] Usando poppler local de Windows: {self.poppler_path}")
-                else:
-                    print(f"[ERROR] Poppler local no encontrado en: {self.poppler_path}")
-                    self.poppler_path = None
+        if sistema == "windows":
+            # Windows: usar poppler local
+            self.poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
+            if os.path.exists(self.poppler_path):
+                print(f"[INFO] Usando poppler local de Windows: {self.poppler_path}")
             else:
-                # Linux: usar poppler del sistema o instalar
-                print("[INFO] En Linux, poppler debe estar instalado en el sistema")
+                print(f"[ERROR] Poppler local no encontrado en: {self.poppler_path}")
+                self.poppler_path = None
+        else:
+            # Linux: usar ruta específica
+            self.poppler_path = "/usr/bin"
+            if os.path.exists(os.path.join(self.poppler_path, "pdftoppm")):
+                print(f"[INFO] Usando poppler de Linux: {self.poppler_path}")
+            else:
+                print(f"[ERROR] Poppler no encontrado en: {self.poppler_path}")
                 print("[INFO] Ejecuta: sudo apt-get install poppler-utils")
                 self.poppler_path = None
-        # Verificar que existe
-        if os.path.exists(self.poppler_path):
-            print(f"[INFO] Directorio poppler encontrado: {self.poppler_path}")
-            # Verificar que pdftoppm.exe existe
-            pdftoppm_path = os.path.join(self.poppler_path, "pdftoppm.exe")
-            if os.path.exists(pdftoppm_path):
-                print(f"[OK] pdftoppm.exe encontrado: {pdftoppm_path}")
-            else:
-                print(f"[ERROR] pdftoppm.exe no encontrado en: {pdftoppm_path}")
-                print(f"[DEBUG] Archivos en directorio: {os.listdir(self.poppler_path)}")
-                self.poppler_path = None
-        else:
-            print(f"[ERROR] Directorio poppler no encontrado: {self.poppler_path}")
-            print(f"[DEBUG] Directorio actual: {os.getcwd()}")
-            print(f"[DEBUG] Archivos en directorio actual: {os.listdir('.')}")
-            self.poppler_path = None
         
         # Extensiones de imagen soportadas
         self.extensiones_imagen = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']
