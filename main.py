@@ -20,17 +20,22 @@ class SOATProcessor:
         self.extensiones_imagen = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']
         
     
-    def buscar_imagen_por_numero(self, numero: str) -> Optional[str]:
+    def buscar_imagen_por_numero(self, numero: str, tipo_soat: str = "protecta") -> Optional[str]:
         """
         Busca una imagen en el sistema que contenga el numero en su nombre
         
         Args:
             numero: El numero a buscar en los nombres de archivo
+            tipo_soat: 'protecta' o 'positiva' para determinar la carpeta de búsqueda
             
         Returns:
             str: Ruta de la imagen encontrada o None si no se encuentra
         """
-        directorios_busqueda = [".", "assets", "imagenes", "recursos"]
+        # Definir directorios de búsqueda según el tipo de SOAT
+        if tipo_soat == "positiva":
+            directorios_busqueda = ["assets/assets-positiva", "assets", ".", "imagenes", "recursos"]
+        else:  # protecta (por defecto)
+            directorios_busqueda = [".", "assets", "imagenes", "recursos"]
         
         for directorio in directorios_busqueda:
             if not os.path.exists(directorio):
@@ -49,11 +54,14 @@ class SOATProcessor:
                     es_imagen = any(nombre_lower.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'])
                     
                     if es_imagen and numero in archivo:
+                        print(f"[INFO] Imagen encontrada para {numero} en {tipo_soat}: {ruta_completa}")
                         return ruta_completa
                         
             except Exception as e:
+                print(f"[WARNING] Error accediendo a {directorio}: {e}")
                 continue
         
+        print(f"[WARNING] No se encontró imagen para {numero} en {tipo_soat}")
         return None
     
     def listar_imagenes_disponibles(self) -> List[dict]:
@@ -182,7 +190,7 @@ class SOATProcessor:
             print(f"[ERROR] Error descomponiendo número {numero}: {e}")
             return []
 
-    def buscar_imagenes_por_digitos(self, digitos: List[str]) -> tuple:
+    def buscar_imagenes_por_digitos(self, digitos: List[str], tipo_soat: str) -> tuple:
         """
         Busca imágenes para cada dígito individual
         
@@ -196,7 +204,11 @@ class SOATProcessor:
         digitos_no_encontrados = []
         
         for i, digito in enumerate(digitos):
-            ruta_imagen = self.buscar_imagen_por_numero(digito)
+            # Buscar imagen del dígito con el tipo de SOAT
+            ruta_imagen = self.buscar_imagen_por_numero(digito, tipo_soat)
+            if not ruta_imagen:
+                print(f"[ERROR] No se encontró imagen para dígito {digito} en {tipo_soat}")
+                continue
             
             if ruta_imagen:
                 imagenes_encontradas.append({
@@ -289,7 +301,7 @@ class SOATProcessor:
                 return {'success': False, 'error': 'No se pudo descomponer el número en dígitos.'}
             
             # 2. Buscar imágenes para cada dígito
-            imagenes_info, digitos_no_encontrados = self.buscar_imagenes_por_digitos(digitos)
+            imagenes_info, digitos_no_encontrados = self.buscar_imagenes_por_digitos(digitos, tipo_soat)
             
             if digitos_no_encontrados:
                 # Obtener números disponibles para mostrar error
@@ -330,9 +342,9 @@ class SOATProcessor:
                     2: {'x': 994, 'y': 1772}   # Tercer dígito (más a la derecha)
                 },
                 'positiva': {
-                    0: {'x': 938, 'y': 1772},   # Primer dígito (más a la izquierda)
-                    1: {'x': 965, 'y': 1772},  # Segundo dígito (centro)
-                    2: {'x': 994, 'y': 1772}   # Tercer dígito (más a la derecha)
+                    0: {'x': 918, 'y': 2194},   # Primer dígito para Positiva (posición diferente)
+                    1: {'x': 954, 'y': 2194},  # Segundo dígito para Positiva
+                    2: {'x': 991, 'y': 2194}   # Tercer dígito para Positiva
                 }
             }
             
