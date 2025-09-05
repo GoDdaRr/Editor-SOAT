@@ -458,41 +458,9 @@ def obtener_ip_local():
     except:
         return "localhost"
 
-def configurar_ngrok():
-    """Configura ngrok para acceso remoto"""
-    try:
-        import subprocess
-        import threading
-        import time
-        
-        # Intentar ejecutar ngrok directamente
-        def ejecutar_ngrok():
-            try:
-                subprocess.run(['ngrok', 'http', '5000'], check=True)
-            except:
-                pass
-        
-        # Ejecutar ngrok en segundo plano
-        ngrok_thread = threading.Thread(target=ejecutar_ngrok, daemon=True)
-        ngrok_thread.start()
-        
-        # Esperar un poco para que ngrok se configure
-        time.sleep(3)
-        
-        print("[INFO] Ngrok iniciado manualmente.")
-        print("[INFO] Visita http://localhost:4040 para ver la URL publica")
-        
-        return "http://localhost:4040"
-        
-    except Exception as e:
-        print(f"[ERROR] Error configurando ngrok: {e}")
-        print("[INFO] Ejecuta manualmente: ngrok http 5000")
-        return None
-
 def mostrar_informacion_acceso():
-    """Muestra todas las formas de acceso al servidor"""
+    """Muestra las formas de acceso al servidor"""
     ip_local = obtener_ip_local()
-    url_remota = configurar_ngrok()
     
     print("\n" + "="*60)
     print("EDITOR SOAT - SERVIDOR FLASK INICIADO")
@@ -501,23 +469,12 @@ def mostrar_informacion_acceso():
     print(f"   -> http://localhost:5000")
     print(f"   -> http://127.0.0.1:5000")
     print(f"")
-    print(f"[RED] Acceso Red Local (misma WiFi):")
+    print(f"[RED] Acceso Red Local (misma red):")
     print(f"   -> http://{ip_local}:5000")
     print(f"")
-    
-    if url_remota:
-        print(f"[REMOTO] Acceso desde cualquier red:")
-        print(f"   -> {url_remota}")
-        print(f"   [OK] Compartir esta URL para acceso desde cualquier lugar")
-    else:
-        print(f"[WARNING] Acceso Remoto no disponible")
-        print(f"   -> Instala pyngrok: pip install pyngrok")
-    
-    print(f"")
-    print(f"[INFO] Consejos:")
-    print(f"   • Para dispositivos en la misma red: usa la URL de Red Local")
-    print(f"   • Para acceso desde internet: usa la URL Remota")
-    print(f"   • La URL remota cambia cada vez que reinicias el servidor")
+    print(f"[INFO] El servidor está configurado para ejecutarse en un host")
+    print(f"   • Para acceso local: usa localhost o 127.0.0.1")
+    print(f"   • Para acceso desde la red: usa la IP local mostrada")
     print("="*60)
     print("\n")
 
