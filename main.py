@@ -13,19 +13,28 @@ class SOATProcessor:
         self.archivo_protecta = "Imagen-prueba-Protecta.pdf"
         self.archivo_positiva = "Imagen-prueba-Positiva.pdf"
         
-        # Configuración de poppler - USAR SISTEMA
+        # Configuración de poppler - FORZAR LOCAL
         import os
-        import shutil
         
-        # Verificar si poppler está en el PATH del sistema
-        poppler_system = shutil.which('pdftoppm')
+        # Usar poppler local de Windows
+        self.poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
         
-        if poppler_system:
-            print(f"[INFO] Usando poppler del sistema: {poppler_system}")
-            self.poppler_path = None  # None = usar PATH del sistema
+        # Verificar que existe
+        if os.path.exists(self.poppler_path):
+            print(f"[INFO] Directorio poppler encontrado: {self.poppler_path}")
+            # Verificar que pdftoppm.exe existe
+            pdftoppm_path = os.path.join(self.poppler_path, "pdftoppm.exe")
+            if os.path.exists(pdftoppm_path):
+                print(f"[OK] pdftoppm.exe encontrado: {pdftoppm_path}")
+            else:
+                print(f"[ERROR] pdftoppm.exe no encontrado en: {pdftoppm_path}")
+                print(f"[DEBUG] Archivos en directorio: {os.listdir(self.poppler_path)}")
+                self.poppler_path = None
         else:
-            print("[ERROR] Poppler no encontrado en el sistema")
-            self.poppler_path = None  # Intentar de todas formas
+            print(f"[ERROR] Directorio poppler no encontrado: {self.poppler_path}")
+            print(f"[DEBUG] Directorio actual: {os.getcwd()}")
+            print(f"[DEBUG] Archivos en directorio actual: {os.listdir('.')}")
+            self.poppler_path = None
         
         # Extensiones de imagen soportadas
         self.extensiones_imagen = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']
@@ -523,15 +532,29 @@ class SOATProcessor:
         try:
             if tipo_soat == 'protecta':
                 archivo_pdf = self.archivo_protecta
-                archivo_png = "imagen-flujo.png"  # CAMBIADO: de "final_protecta1.png" a "imagen-flujo.png"
+                archivo_png = "imagen-flujo.png"
             elif tipo_soat == 'positiva':
                 archivo_pdf = self.archivo_positiva
-                archivo_png = "imagen-flujo.png"  # CAMBIADO: de "final_positiva1.png" a "imagen-flujo.png"
+                archivo_png = "imagen-flujo.png"
             else:
                 raise ValueError("tipo_soat debe ser 'protecta' o 'positiva'")
             
             if not os.path.exists(archivo_pdf):
                 raise FileNotFoundError(f"No se encuentra el archivo: {archivo_pdf}")
+            
+            # FORZAR uso del poppler local con ruta absoluta
+            poppler_local = r"C:\Users\berpi\OneDrive\Escritorio\Proyectos\Editor-Soat\poppler\poppler-24.02.0\Library\bin"
+            print(f"[DEBUG] Usando poppler local: {poppler_local}")
+            print(f"[DEBUG] Directorio existe: {os.path.exists(poppler_local)}")
+            
+            # Verificar que pdftoppm.exe existe
+            pdftoppm_exe = os.path.join(poppler_local, "pdftoppm.exe")
+            print(f"[DEBUG] pdftoppm.exe path: {pdftoppm_exe}")
+            print(f"[DEBUG] pdftoppm.exe existe: {os.path.exists(pdftoppm_exe)}")
+            
+            if not os.path.exists(pdftoppm_exe):
+                print(f"[ERROR] pdftoppm.exe no encontrado en: {pdftoppm_exe}")
+                return None
             
             # DEBUG: Información detallada
             print(f"[DEBUG] Poppler path configurado: {self.poppler_path}")
@@ -542,19 +565,23 @@ class SOATProcessor:
             import subprocess
             try:
                 if self.poppler_path:
-                    result = subprocess.run([os.path.join(self.poppler_path, 'pdftoppm'), '-h'], 
+                    pdftoppm_exe = os.path.join(self.poppler_path, "pdftoppm.exe")
+                    result = subprocess.run([pdftoppm_exe, '-h'], 
                                           capture_output=True, text=True, timeout=5)
+                    print(f"[DEBUG] Poppler test exitoso: {result.returncode}")
                 else:
                     result = subprocess.run(['pdftoppm', '-h'], 
                                           capture_output=True, text=True, timeout=5)
-                print(f"[DEBUG] Poppler test exitoso: {result.returncode}")
+                    print(f"[DEBUG] Poppler test exitoso: {result.returncode}")
             except Exception as e:
                 print(f"[DEBUG] Error probando poppler: {e}")
             
             # Convertir PDF a imagen
             print(f"[DEBUG] Iniciando conversión PDF...")
-            pages = convert_from_path(archivo_pdf, dpi=dpi, poppler_path=self.poppler_path)
+            pages = convert_from_path(archivo_pdf, dpi=dpi, poppler_path=poppler_local)
             print(f"[DEBUG] Conversión exitosa, páginas obtenidas: {len(pages)}")
+            
+            page = pages[0]  # Tomar la primera pagina
             
             # Convertir a formato OpenCV
             imagen_cv = cv2.cvtColor(np.array(page), cv2.COLOR_RGB2BGR)
