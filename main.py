@@ -6,6 +6,7 @@ import glob
 from typing import Tuple, Optional, List
 import shutil
 from PIL import Image  # Agregar PIL para conversión a PDF
+import platform
 
 class SOATProcessor:
     def __init__(self):
@@ -13,12 +14,38 @@ class SOATProcessor:
         self.archivo_protecta = "Imagen-prueba-Protecta.pdf"
         self.archivo_positiva = "Imagen-prueba-Positiva.pdf"
         
-        # Configuración de poppler - FORZAR LOCAL
+        # Configuración de poppler - RUTA GENERAL
         import os
+        import shutil
+        import platform
         
-        # Usar poppler local de Windows
-        self.poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
+        # Detectar el sistema operativo
+        sistema = platform.system().lower()
+        print(f"[INFO] Sistema operativo detectado: {sistema}")
         
+        # Verificar si poppler está en el PATH del sistema
+        poppler_system = shutil.which('pdftoppm')
+        
+        if poppler_system:
+            print(f"[INFO] Usando poppler del sistema: {poppler_system}")
+            self.poppler_path = None  # None = usar PATH del sistema
+        else:
+            print("[WARNING] Poppler no encontrado en el PATH del sistema")
+            
+            # Intentar usar poppler local según el sistema
+            if sistema == "windows":
+                # Windows: usar poppler local
+                self.poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
+                if os.path.exists(self.poppler_path):
+                    print(f"[INFO] Usando poppler local de Windows: {self.poppler_path}")
+                else:
+                    print(f"[ERROR] Poppler local no encontrado en: {self.poppler_path}")
+                    self.poppler_path = None
+            else:
+                # Linux: usar poppler del sistema o instalar
+                print("[INFO] En Linux, poppler debe estar instalado en el sistema")
+                print("[INFO] Ejecuta: sudo apt-get install poppler-utils")
+                self.poppler_path = None
         # Verificar que existe
         if os.path.exists(self.poppler_path):
             print(f"[INFO] Directorio poppler encontrado: {self.poppler_path}")
