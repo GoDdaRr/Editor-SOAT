@@ -5,9 +5,9 @@ import os
 import glob
 from typing import Tuple, Optional, List
 import shutil
-from PIL import Image  # Agregar PIL para conversión a PDF
+from PIL import Image
 import platform
-import datetime  # Agregar datetime para timestamps
+import datetime
 
 class SOATProcessor:
     def __init__(self):
@@ -15,63 +15,32 @@ class SOATProcessor:
         self.archivo_protecta = "Imagen-prueba-Protecta.pdf"
         self.archivo_positiva = "Imagen-prueba-Positiva.pdf"
         
-        # Configuración de poppler - RUTA ESPECÍFICA LINUX
-        import os
-        import shutil
-        import platform
-        
-        # Detectar el sistema operativo
+        # Configuración de poppler
         sistema = platform.system().lower()
-        print(f"[INFO] Sistema operativo detectado: {sistema}")
         
         if sistema == "windows":
-            # Windows: usar poppler local
             self.poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
-            if os.path.exists(self.poppler_path):
-                print(f"[INFO] Usando poppler local de Windows: {self.poppler_path}")
-            else:
-                print(f"[ERROR] Poppler local no encontrado en: {self.poppler_path}")
+            if not os.path.exists(self.poppler_path):
                 self.poppler_path = None
         else:
-            # Linux: usar ruta específica
             self.poppler_path = "/usr/bin"
-            if os.path.exists(os.path.join(self.poppler_path, "pdftoppm")):
-                print(f"[INFO] Usando poppler de Linux: {self.poppler_path}")
-            else:
-                print(f"[ERROR] Poppler no encontrado en: {self.poppler_path}")
-                print("[INFO] Ejecuta: sudo apt-get install poppler-utils")
+            if not os.path.exists(os.path.join(self.poppler_path, "pdftoppm")):
                 self.poppler_path = None
         
         # Extensiones de imagen soportadas
         self.extensiones_imagen = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']
-        
     
     def log_with_timestamp(self, level: str, message: str):
-        """
-        Función personalizada para logging con timestamp
-        
-        Args:
-            level: Nivel del log (INFO, OK, ERROR, WARNING, DEBUG, SAVE)
-            message: Mensaje a mostrar
-        """
+        """Logging básico para producción"""
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{timestamp}] [{level}] {message}")
+        if level in ['ERROR', 'WARNING']:
+            print(f"[{timestamp}] [{level}] {message}")
     
     def buscar_imagen_por_numero(self, numero: str, tipo_soat: str = "protecta") -> Optional[str]:
-        """
-        Busca una imagen en el sistema que contenga el numero en su nombre
-        
-        Args:
-            numero: El numero a buscar en los nombres de archivo
-            tipo_soat: 'protecta' o 'positiva' para determinar la carpeta de búsqueda
-            
-        Returns:
-            str: Ruta de la imagen encontrada o None si no se encuentra
-        """
-        # Definir directorios de búsqueda según el tipo de SOAT
+        """Busca una imagen en el sistema que contenga el numero en su nombre"""
         if tipo_soat == "positiva":
             directorios_busqueda = ["assets/assets-positiva", "assets", ".", "imagenes", "recursos"]
-        else:  # protecta (por defecto)
+        else:
             directorios_busqueda = ["assets/assets-protecta", "assets/antiguos", "assets", ".", "imagenes", "recursos"]
         
         for directorio in directorios_busqueda:
@@ -90,244 +59,50 @@ class SOATProcessor:
                     nombre_lower = archivo.lower()
                     es_imagen = any(nombre_lower.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'])
                     
-                    # Buscar tanto el patrón original como el nuevo patrón
                     if es_imagen and (numero in archivo or f"numero-{numero}-nuevo" in archivo):
-                        self.log_with_timestamp("INFO", f"Imagen encontrada para {numero} en {tipo_soat}: {ruta_completa}")
                         return ruta_completa
                         
             except Exception as e:
                 self.log_with_timestamp("WARNING", f"Error accediendo a {directorio}: {e}")
                 continue
         
-        self.log_with_timestamp("WARNING", f"No se encontró imagen para {numero} en {tipo_soat}")
         return None
     
-    def listar_imagenes_disponibles(self) -> List[dict]:
-        """
-        Lista todas las imagenes disponibles en el sistema con sus numeros extraidos
-        """
-        imagenes_info = []
-        # Buscar en todas las carpetas de assets
-        directorios_busqueda = ["assets/assets-protecta", "assets/assets-positiva", "assets/antiguos", "assets", ".", "imagenes", "recursos"]
-        
-        for directorio in directorios_busqueda:
-            if not os.path.exists(directorio):
-                continue
-                
-            try:
-                archivos = os.listdir(directorio)
-                
-                for archivo in archivos:
-                    ruta_completa = os.path.join(directorio, archivo)
-                    
-                    if not os.path.isfile(ruta_completa):
-                        continue
-                    
-                    nombre_lower = archivo.lower()
-                    es_imagen = any(nombre_lower.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'])
-                    
-                    if es_imagen:
-                        numeros = self.extraer_numeros_del_nombre(archivo)
-                        
-                        if numeros:  # Solo agregar si tiene numeros
-                            imagen_info = {
-                                'ruta': ruta_completa,
-                                'nombre': archivo,
-                                'numeros': numeros,
-                                'tamano': os.path.getsize(ruta_completa),
-                                'directorio': directorio
-                            }
-                            imagenes_info.append(imagen_info)
-                        
-            except Exception as e:
-                continue
-        
-        return imagenes_info
-
-    def mostrar_imagenes_disponibles_por_tipo(self):
-        """
-        Muestra todas las imágenes disponibles organizadas por tipo de SOAT
-        """
-        self.log_with_timestamp("INFO", "=== IMAGENES DISPONIBLES PARA SOAT ===")
-        
-        # Buscar imágenes para Protecta
-        self.log_with_timestamp("INFO", "IMAGENES PARA PROTECTA:")
-        directorios_protecta = ["assets/assets-protecta", "assets/antiguos", "assets"]
-        imagenes_protecta = []
-        
-        for directorio in directorios_protecta:
-            if not os.path.exists(directorio):
-                continue
-                
-            try:
-                archivos = os.listdir(directorio)
-                for archivo in archivos:
-                    ruta_completa = os.path.join(directorio, archivo)
-                    if os.path.isfile(ruta_completa):
-                        nombre_lower = archivo.lower()
-                        es_imagen = any(nombre_lower.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'])
-                        
-                        if es_imagen:
-                            numeros = self.extraer_numeros_del_nombre(archivo)
-                            if numeros:
-                                imagenes_protecta.append({
-                                    'nombre': archivo,
-                                    'numeros': numeros,
-                                    'directorio': directorio
-                                })
-            except Exception as e:
-                continue
-        
-        if imagenes_protecta:
-            for img in imagenes_protecta:
-                self.log_with_timestamp("INFO", f"  -> {img['directorio']}/{img['nombre']} - Numeros: {', '.join(img['numeros'])}")
-        else:
-            self.log_with_timestamp("WARNING", "  [ERROR] No se encontraron imagenes para Protecta")
-        
-        # Buscar imágenes para Positiva
-        self.log_with_timestamp("INFO", "IMAGENES PARA POSITIVA:")
-        directorios_positiva = ["assets/assets-positiva", "assets"]
-        imagenes_positiva = []
-        
-        for directorio in directorios_positiva:
-            if not os.path.exists(directorio):
-                continue
-                
-            try:
-                archivos = os.listdir(directorio)
-                for archivo in archivos:
-                    ruta_completa = os.path.join(directorio, archivo)
-                    if os.path.isfile(ruta_completa):
-                        nombre_lower = archivo.lower()
-                        es_imagen = any(nombre_lower.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'])
-                        
-                        if es_imagen:
-                            numeros = self.extraer_numeros_del_nombre(archivo)
-                            if numeros:
-                                imagenes_positiva.append({
-                                    'nombre': archivo,
-                                    'numeros': numeros,
-                                    'directorio': directorio
-                                })
-            except Exception as e:
-                continue
-        
-        if imagenes_positiva:
-            for img in imagenes_positiva:
-                self.log_with_timestamp("INFO", f"  -> {img['directorio']}/{img['nombre']} - Numeros: {', '.join(img['numeros'])}")
-        else:
-            self.log_with_timestamp("WARNING", "  [ERROR] No se encontraron imagenes para Positiva")
-        
-        # Resumen
-        total_protecta = len(imagenes_protecta)
-        total_positiva = len(imagenes_positiva)
-        self.log_with_timestamp("INFO", f"RESUMEN: {total_protecta} imagenes para Protecta, {total_positiva} imagenes para Positiva")
-        self.log_with_timestamp("INFO", "=== FIN DE LISTADO DE IMAGENES ===")
-    
-    def extraer_numeros_del_nombre(self, nombre_archivo: str) -> List[str]:
-        """
-        Extrae todos los numeros de un nombre de archivo
-        
-        Args:
-            nombre_archivo: Nombre del archivo
-            
-        Returns:
-            List[str]: Lista de numeros encontrados
-        """
-        import re
-        try:
-            # Buscar secuencias de digitos (incluyendo decimales)
-            patron = r'\d+(?:\.\d+)?'
-            numeros = re.findall(patron, nombre_archivo)
-            
-            # Tambien buscar numeros que puedan estar separados por guiones o puntos
-            # Por ejemplo: "monto-soles-170.png" deberia encontrar "170"
-            patron_complejo = r'(?:^|[^\d])(\d+(?:\.\d+)?)(?=[^\d]|$)'
-            numeros_complejos = re.findall(patron_complejo, nombre_archivo)
-            
-            # Combinar ambas busquedas y eliminar duplicados
-            todos_numeros = list(set(numeros + numeros_complejos))
-            
-            return todos_numeros
-            
-        except Exception as e:
-            print(f"Error extrayendo numeros de {nombre_archivo}: {e}")
-            return []
-    
     def validar_numero(self, numero_str: str) -> bool:
-        """
-        Valida que el string sea un numero valido
-        
-        Args:
-            numero_str: String a validar
-            
-        Returns:
-            bool: True si es un numero valido
-        """
+        """Valida que el string sea un numero valido"""
         try:
-            # Verificar que solo contenga digitos y puntos/comas
             caracteres_validos = set('0123456789.,')
             if not all(c in caracteres_validos for c in numero_str):
                 return False
-            
-            # Intentar convertir a float para validar formato
             float(numero_str.replace(',', '.'))
             return True
         except:
             return False
     
     def descomponer_numero_en_digitos(self, numero: str) -> List[str]:
-        """
-        Descompone un número en sus dígitos individuales
-        
-        Args:
-            numero: Número como string (ej: "25", "123")
-            
-        Returns:
-            List[str]: Lista de dígitos individuales (ej: ["2", "5"], ["1", "2", "3"])
-        """
+        """Descompone un número en sus dígitos individuales"""
         try:
-            # Limpiar el número (remover decimales si los hay)
             numero_limpio = numero.replace('.', '').replace(',', '')
             
-            # Validar que solo contenga dígitos
             if not numero_limpio.isdigit():
                 return []
             
-            # Validar longitud máxima (3 dígitos)
             if len(numero_limpio) > 3:
-                print(f"[WARNING] Número {numero} tiene más de 3 dígitos, truncando a los primeros 3")
                 numero_limpio = numero_limpio[:3]
             
-            # Descomponer en dígitos individuales
-            digitos = list(numero_limpio)
-            
-            print(f"[INFO] Número {numero} descompuesto en dígitos: {digitos}")
-            return digitos
+            return list(numero_limpio)
             
         except Exception as e:
-            print(f"[ERROR] Error descomponiendo número {numero}: {e}")
+            self.log_with_timestamp("ERROR", f"Error descomponiendo número {numero}: {e}")
             return []
 
     def buscar_imagenes_por_digitos(self, digitos: List[str], tipo_soat: str) -> tuple:
-        """
-        Busca imágenes para cada dígito individual
-        
-        Args:
-            digitos: Lista de dígitos individuales
-            
-        Returns:
-            tuple: (imagenes_encontradas, digitos_no_encontrados)
-        """
+        """Busca imágenes para cada dígito individual"""
         imagenes_encontradas = []
         digitos_no_encontrados = []
         
         for i, digito in enumerate(digitos):
-            # Buscar imagen del dígito con el tipo de SOAT
             ruta_imagen = self.buscar_imagen_por_numero(digito, tipo_soat)
-            if not ruta_imagen:
-                print(f"[ERROR] No se encontró imagen para dígito {digito} en {tipo_soat}")
-                continue
             
             if ruta_imagen:
                 imagenes_encontradas.append({
@@ -336,7 +111,6 @@ class SOATProcessor:
                     'ruta': ruta_imagen,
                     'encontrada': True
                 })
-                print(f"[OK] Dígito {digito} encontrado en: {ruta_imagen}")
             else:
                 digitos_no_encontrados.append(digito)
                 imagenes_encontradas.append({
@@ -345,37 +119,22 @@ class SOATProcessor:
                     'ruta': None,
                     'encontrada': False
                 })
-                print(f"[ERROR] No se encontró imagen para el dígito {digito}")
         
         return imagenes_encontradas, digitos_no_encontrados
 
     def convertir_imagen_a_pdf(self, imagen_path: str, pdf_path: str) -> bool:
-        """
-        Convierte una imagen a formato PDF
-        
-        Args:
-            imagen_path: Ruta de la imagen a convertir
-            pdf_path: Ruta donde guardar el PDF
-            
-        Returns:
-            bool: True si la conversión fue exitosa
-        """
+        """Convierte una imagen a formato PDF"""
         try:
-            # Abrir la imagen
             imagen = Image.open(imagen_path)
             
-            # Convertir a RGB si es necesario (para compatibilidad con PDF)
             if imagen.mode != 'RGB':
                 imagen = imagen.convert('RGB')
             
-            # Guardar como PDF
             imagen.save(pdf_path, 'PDF', resolution=300.0, quality=95)
-            
-            print(f"[OK] Imagen convertida a PDF: {pdf_path}")
             return True
             
         except Exception as e:
-            print(f"[ERROR] Error convirtiendo imagen a PDF: {e}")
+            self.log_with_timestamp("ERROR", f"Error convirtiendo imagen a PDF: {e}")
             return False
 
     def procesar_soat_con_digitos(self, 
@@ -389,134 +148,78 @@ class SOATProcessor:
                                 ancho_final: int = 1694,
                                 alto_final: int = 3300,
                                 generar_pdf: bool = True) -> dict:
-        """
-        NUEVA FUNCIONALIDAD: Procesa SOAT descomponiendo el número en dígitos individuales
-        y pegando cada imagen en posiciones fijas predefinidas
-        
-        Args:
-            tipo_soat: 'protecta' o 'positiva'
-            numero: Número a procesar (máximo 3 dígitos)
-            archivo_salida: Archivo de salida (JPG)
-            aplicar_mejoras: Aplicar mejoras de calidad
-            factor_brillo: Factor de brillo
-            dpi_conversion: DPI de conversión
-            redimensionar_final: Redimensionar imagen final
-            ancho_final: Ancho objetivo
-            alto_final: Alto objetivo
-            generar_pdf: Si generar también versión PDF
-            
-        Returns:
-            dict: Resultado del procesamiento
-        """
+        """Procesa SOAT descomponiendo el número en dígitos individuales"""
         try:
-            self.log_with_timestamp("INFO", f"Iniciando procesamiento de SOAT con dígitos para número: {numero}")
-            
-            # 1. Validar y descomponer número
+            # Validar y descomponer número
             if not self.validar_numero(numero):
-                self.log_with_timestamp("ERROR", f"Número inválido: {numero}")
                 return {'success': False, 'error': 'El número ingresado no es válido.'}
             
             digitos = self.descomponer_numero_en_digitos(numero)
             if not digitos:
-                self.log_with_timestamp("ERROR", f"No se pudo descomponer el número: {numero}")
                 return {'success': False, 'error': 'No se pudo descomponer el número en dígitos.'}
             
-            self.log_with_timestamp("INFO", f"Dígitos descompuestos: {digitos}")
-            
-            # 2. Buscar imágenes para cada dígito
+            # Buscar imágenes para cada dígito
             imagenes_info, digitos_no_encontrados = self.buscar_imagenes_por_digitos(digitos, tipo_soat)
             
             if digitos_no_encontrados:
-                self.log_with_timestamp("ERROR", f"Dígitos no encontrados: {digitos_no_encontrados}")
-                # Obtener números disponibles para mostrar error
-                imagenes_disponibles = self.listar_imagenes_disponibles()
-                numeros_disponibles = []
-                for img in imagenes_disponibles:
-                    numeros_disponibles.extend(img['numeros'])
-                
                 return {
                     'success': False, 
-                    'error': f'No se encontraron imágenes para los dígitos: {", ".join(digitos_no_encontrados)}. Dígitos disponibles: {", ".join(set(numeros_disponibles))}'
+                    'error': f'No se encontraron imágenes para los dígitos: {", ".join(digitos_no_encontrados)}'
                 }
             
-            self.log_with_timestamp("INFO", f"Todas las imágenes encontradas para los dígitos")
-            
-            # 3. Convertir PDF a imagen CON MEJORAS
-            self.log_with_timestamp("INFO", f"Convirtiendo PDF a imagen para {tipo_soat}")
+            # Convertir PDF a imagen
             fondo = self.pdf_to_image_mejorada(tipo_soat, dpi_conversion, aplicar_mejoras, factor_brillo)
             if fondo is None:
-                self.log_with_timestamp("ERROR", f"No se pudo procesar el PDF de {tipo_soat}")
                 return {'success': False, 'error': f'No se pudo procesar el PDF de {tipo_soat}'}
             
-            self.log_with_timestamp("INFO", f"PDF convertido exitosamente, dimensiones: {fondo.shape}")
-            
-            # 4. Redimensionar fondo si está habilitado
+            # Redimensionar fondo si está habilitado
             dimensiones_originales = f'{fondo.shape[1]}x{fondo.shape[0]}'
             
             if redimensionar_final:
-                self.log_with_timestamp("INFO", f"Redimensionando fondo a {ancho_final}x{alto_final} ANTES de pegar...")
                 fondo = self.redimensionar_resultado_final(fondo, ancho_final, alto_final)
-                self.guardar_imagen_intermedia(fondo, "fondo_redimensionado", tipo_soat)
                 
-                # Aplicar saturación a región específica
                 if aplicar_mejoras:
-                    self.log_with_timestamp("INFO", "Aplicando saturación a región específica del fondo...")
                     fondo = self.saturar_region_rectangulo(fondo, 35, 2525, 1661, 2780, 1.6)
-                    self.guardar_imagen_intermedia(fondo, "fondo_region_saturada", tipo_soat)
             
-            # 5. Configuración de posiciones fijas para cada dígito
+            # Configuración de posiciones fijas para cada dígito
             posiciones_digitos = {
                 'protecta': {
-                    0: {'x': 936, 'y': 1771},   # Primer dígito (más a la izquierda)
-                    1: {'x': 966, 'y': 1771},  # Segundo dígito (centro)
-                    2: {'x': 995, 'y': 1771}   # Tercer dígito (más a la derecha)
+                    0: {'x': 936, 'y': 1771},
+                    1: {'x': 966, 'y': 1771},
+                    2: {'x': 995, 'y': 1771}
                 },
                 'positiva': {
-                    0: {'x': 918, 'y': 2194},   # Primer dígito para Positiva (posición diferente)
-                    1: {'x': 954, 'y': 2194},  # Segundo dígito para Positiva
-                    2: {'x': 991, 'y': 2194}   # Tercer dígito para Positiva
+                    0: {'x': 918, 'y': 2194},
+                    1: {'x': 954, 'y': 2194},
+                    2: {'x': 991, 'y': 2194}
                 }
             }
             
-            # 6. Procesar cada dígito en su posición fija
+            # Procesar cada dígito en su posición fija
             resultado = fondo.copy()
             imagenes_pegadas = []
             
             for img_info in imagenes_info:
                 if not img_info['encontrada']:
-                    self.log_with_timestamp("WARNING", f"Dígito {img_info['digito']} no encontrado, saltando...")
                     continue
                 
-                # Cargar imagen del dígito
-                self.log_with_timestamp("INFO", f"Cargando imagen para dígito {img_info['digito']}: {img_info['ruta']}")
                 imagen_digito = cv2.imread(img_info['ruta'])
                 if imagen_digito is None:
-                    self.log_with_timestamp("ERROR", f"No se pudo cargar la imagen: {img_info['ruta']}")
                     continue
                 
-                # Guardar imagen intermedia
-                self.guardar_imagen_intermedia(imagen_digito, f"digito_{img_info['digito']}_original", tipo_soat)
-                
-                # Obtener posición fija para este dígito
                 posicion_digito = img_info['posicion']
                 if posicion_digito not in posiciones_digitos[tipo_soat]:
-                    self.log_with_timestamp("ERROR", f"No hay posición definida para el dígito en posición {posicion_digito}")
                     continue
                 
                 x_posicion = posiciones_digitos[tipo_soat][posicion_digito]['x']
                 y_posicion = posiciones_digitos[tipo_soat][posicion_digito]['y']
                 
-                # Verificar límites
                 h_digito, w_digito = imagen_digito.shape[:2]
                 h_fondo, w_fondo = resultado.shape[:2]
                 
-                self.log_with_timestamp("INFO", f"Pegando dígito {img_info['digito']} de {w_digito}x{h_digito} en posición fija ({x_posicion},{y_posicion})")
-                
                 if x_posicion + w_digito > w_fondo or y_posicion + h_digito > h_fondo:
-                    self.log_with_timestamp("ERROR", f"Dígito {img_info['digito']} se sale de los límites. Fondo: {w_fondo}x{h_fondo}")
                     continue
                 
-                # Pegar imagen del dígito en posición fija
                 resultado[y_posicion:y_posicion+h_digito, x_posicion:x_posicion+w_digito] = imagen_digito
                 
                 imagenes_pegadas.append({
@@ -525,28 +228,16 @@ class SOATProcessor:
                     'coordenadas_fijas': f'({x_posicion},{y_posicion})',
                     'dimensiones': f'{w_digito}x{h_digito}'
                 })
-                
-                self.log_with_timestamp("OK", f"Dígito {img_info['digito']} pegado en posición fija ({x_posicion},{y_posicion})")
             
-            # 7. Guardar imagen intermedia del resultado
-            self.guardar_imagen_intermedia(resultado, "resultado_final_con_digitos", tipo_soat)
-            
-            # 8. Guardar la imagen final
-            self.log_with_timestamp("INFO", f"Guardando imagen final: {archivo_salida}")
+            # Guardar la imagen final
             cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
             
-            # 9. Generar PDF si está habilitado
+            # Generar PDF si está habilitado
             archivo_pdf = None
             if generar_pdf:
                 pdf_path = archivo_salida.replace('.jpg', '.pdf')
-                self.log_with_timestamp("INFO", f"Generando PDF: {pdf_path}")
                 if self.convertir_imagen_a_pdf(archivo_salida, pdf_path):
                     archivo_pdf = pdf_path
-                    self.log_with_timestamp("OK", f"PDF generado: {pdf_path}")
-                else:
-                    self.log_with_timestamp("WARNING", "No se pudo generar el PDF")
-            
-            self.log_with_timestamp("OK", f"Procesamiento completado exitosamente para {numero}")
             
             return {
                 'success': True,
@@ -566,26 +257,15 @@ class SOATProcessor:
                 'redimensionado': redimensionar_final,
                 'archivo_salida': archivo_salida,
                 'archivo_pdf': archivo_pdf,
-                'imagen_resultado': resultado  # Esta es la imagen que se usará para todo
+                'imagen_resultado': resultado
             }
             
         except Exception as e:
             self.log_with_timestamp("ERROR", f"Error interno procesando dígitos: {str(e)}")
-            import traceback
-            self.log_with_timestamp("ERROR", f"Traceback: {traceback.format_exc()}")
             return {'success': False, 'error': f'Error interno procesando dígitos: {str(e)}'}
     
     def actualizar_archivo_pdf(self, tipo_soat: str, nuevo_archivo_path: str) -> bool:
-        """
-        Actualiza el archivo PDF de referencia (protecta o positiva)
-        
-        Args:
-            tipo_soat: 'protecta' o 'positiva'
-            nuevo_archivo_path: Ruta del nuevo archivo PDF
-            
-        Returns:
-            bool: True si se actualizó correctamente
-        """
+        """Actualiza el archivo PDF de referencia"""
         try:
             if tipo_soat == 'protecta':
                 if os.path.exists(self.archivo_protecta):
@@ -603,139 +283,179 @@ class SOATProcessor:
             
             return True
         except Exception as e:
-            print(f"Error actualizando archivo {tipo_soat}: {e}")
+            self.log_with_timestamp("ERROR", f"Error actualizando archivo {tipo_soat}: {e}")
             return False
     
-    def pdf_to_image(self, tipo_soat: str, dpi: int = 300, aplicar_mejoras: bool = True) -> Optional[np.ndarray]:
-        """
-        Convierte PDF a imagen y la guarda como PNG (version simplificada para compatibilidad)
-        """
-        return self.pdf_to_image_mejorada(tipo_soat, dpi, aplicar_mejoras, 1.15, 'bilateral')
-
-    def guardar_imagen_intermedia(self, imagen: np.ndarray, nombre_funcion: str, tipo_soat: str) -> str:
-        """
-        Guarda una imagen intermedia con el nombre de la funcion aplicada
-        
-        Args:
-            imagen: Imagen en formato OpenCV
-            nombre_funcion: Nombre de la funcion que se aplico
-            tipo_soat: Tipo de SOAT para incluir en el nombre
-            
-        Returns:
-            str: Ruta del archivo guardado
-        """
-        try:
-            import datetime
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            nombre_archivo = f"{tipo_soat}_{nombre_funcion}_{timestamp}.png"
-            ruta_archivo = os.path.join("imagenes_intermedias", nombre_archivo)
-            
-            # Crear carpeta si no existe
-            os.makedirs("imagenes_intermedias", exist_ok=True)
-            
-            # Guardar imagen
-            cv2.imwrite(ruta_archivo, imagen)
-            print(f"[SAVE] Imagen guardada: {nombre_archivo}")
-            
-            return ruta_archivo
-            
-        except Exception as e:
-            print(f"[ERROR] Error guardando imagen intermedia: {e}")
-            return ""
-
     def pdf_to_image_mejorada(self, tipo_soat: str, dpi: int = 300, aplicar_mejoras: bool = True, 
                              factor_brillo: float = 1.3) -> Optional[np.ndarray]:
-        """
-        Convierte PDF a imagen con mejoras configurables
-        """
+        """Convierte PDF a imagen con mejoras configurables"""
         try:
             if tipo_soat == 'protecta':
                 archivo_pdf = self.archivo_protecta
-                archivo_png = "imagen-flujo.png"
             elif tipo_soat == 'positiva':
                 archivo_pdf = self.archivo_positiva
-                archivo_png = "imagen-flujo.png"
             else:
                 raise ValueError("tipo_soat debe ser 'protecta' o 'positiva'")
             
             if not os.path.exists(archivo_pdf):
                 raise FileNotFoundError(f"No se encuentra el archivo: {archivo_pdf}")
             
-            # USAR RUTA CORRECTA SEGÚN EL SISTEMA
-            import platform
-            sistema = platform.system().lower()
-            
-            if sistema == "windows":
-                # Windows: usar poppler local
-                poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
-                pdftoppm_exe = os.path.join(poppler_path, "pdftoppm.exe")
-            else:
-                # Linux: usar poppler del sistema
-                poppler_path = "/usr/bin"
-                pdftoppm_exe = os.path.join(poppler_path, "pdftoppm")
-            
-            print(f"[DEBUG] Sistema operativo: {sistema}")
-            print(f"[DEBUG] Usando poppler: {poppler_path}")
-            print(f"[DEBUG] Directorio existe: {os.path.exists(poppler_path)}")
-            print(f"[DEBUG] pdftoppm path: {pdftoppm_exe}")
-            print(f"[DEBUG] pdftoppm existe: {os.path.exists(pdftoppm_exe)}")
-            
-            if not os.path.exists(pdftoppm_exe):
-                print(f"[ERROR] pdftoppm no encontrado en: {pdftoppm_exe}")
-                if sistema == "linux":
-                    print("[INFO] En Linux, ejecuta: sudo apt-get install poppler-utils")
+            if self.poppler_path is None:
+                self.log_with_timestamp("ERROR", "Poppler no configurado correctamente")
                 return None
             
-            # DEBUG: Información detallada
-            print(f"[DEBUG] Archivo PDF: {archivo_pdf}")
-            print(f"[DEBUG] DPI: {dpi}")
-            
-            # Verificar poppler manualmente
-            import subprocess
-            try:
-                result = subprocess.run([pdftoppm_exe, '-h'], 
-                                      capture_output=True, text=True, timeout=5)
-                print(f"[DEBUG] Poppler test exitoso: {result.returncode}")
-            except Exception as e:
-                print(f"[DEBUG] Error probando poppler: {e}")
-            
             # Convertir PDF a imagen
-            print(f"[DEBUG] Iniciando conversión PDF...")
-            pages = convert_from_path(archivo_pdf, dpi=dpi, poppler_path=poppler_path)
-            print(f"[DEBUG] Conversión exitosa, páginas obtenidas: {len(pages)}")
-            
-            page = pages[0]  # Tomar la primera pagina
+            pages = convert_from_path(archivo_pdf, dpi=dpi, poppler_path=self.poppler_path)
+            page = pages[0]
             
             # Convertir a formato OpenCV
             imagen_cv = cv2.cvtColor(np.array(page), cv2.COLOR_RGB2BGR)
             
-            # Guardar imagen original del PDF
-            self.guardar_imagen_intermedia(imagen_cv, "pdf_original", tipo_soat)
-            
-            # Aplicar mejoras si esta habilitado
+            # Aplicar mejoras si está habilitado
             if aplicar_mejoras:
-                print(f"[INFO] Aplicando mejoras a la imagen PDF (brillo: {factor_brillo})...")
-                # Solo aumentar brillo, NO quitar texto traslucido
                 imagen_cv = self.aumentar_brillo(imagen_cv, factor_brillo=factor_brillo)
-                self.guardar_imagen_intermedia(imagen_cv, "aumentar_brillo", tipo_soat)
-            
-            # Guardar como PNG (version final)
-            cv2.imwrite(archivo_png, imagen_cv)
-            self.guardar_imagen_intermedia(imagen_cv, "resultado_final", tipo_soat)
             
             return imagen_cv
             
         except Exception as e:
-            print(f"Error convirtiendo PDF a imagen: {e}")
+            self.log_with_timestamp("ERROR", f"Error convirtiendo PDF a imagen: {e}")
             return None
-    
+
+    def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.3) -> np.ndarray:
+        """Aumenta el brillo de una imagen"""
+        try:
+            imagen_float = imagen.astype(np.float32)
+            imagen_brillante = imagen_float * factor_brillo
+            imagen_brillante = np.clip(imagen_brillante, 0, 255)
+            return imagen_brillante.astype(np.uint8)
+        except Exception as e:
+            self.log_with_timestamp("ERROR", f"Error aumentando brillo: {e}")
+            return imagen
+
+    def redimensionar_resultado_final(self, imagen: np.ndarray, ancho_objetivo: int = 1694, alto_objetivo: int = 3300) -> np.ndarray:
+        """Redimensiona la imagen final a un tamaño específico"""
+        try:
+            return cv2.resize(imagen, (ancho_objetivo, alto_objetivo), interpolation=cv2.INTER_CUBIC)
+        except Exception as e:
+            self.log_with_timestamp("ERROR", f"Error redimensionando imagen: {e}")
+            return imagen
+
+    def saturar_region_rectangulo(self, imagen: np.ndarray, x1: int, y1: int, x2: int, y2: int, 
+                             factor_saturacion: float = 1.6) -> np.ndarray:
+        """Satura una región rectangular específica"""
+        try:
+            resultado = imagen.copy()
+            h_img, w_img = imagen.shape[:2]
+            
+            x_inicio = min(x1, x2)
+            y_inicio = min(y1, y2)
+            x_fin = max(x1, x2)
+            y_fin = max(y1, y2)
+            
+            if x_inicio < 0 or y_inicio < 0 or x_fin >= w_img or y_fin >= h_img:
+                return imagen
+            
+            region = imagen[y_inicio:y_fin+1, x_inicio:x_fin+1].copy()
+            region_hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+            h, s, v = cv2.split(region_hsv)
+            
+            s_float = s.astype(np.float32)
+            s_saturada = s_float * factor_saturacion
+            s_saturada = np.clip(s_saturada, 0, 255).astype(np.uint8)
+            
+            region_hsv_saturada = cv2.merge([h, s_saturada, v])
+            region_saturada = cv2.cvtColor(region_hsv_saturada, cv2.COLOR_HSV2BGR)
+            
+            resultado[y_inicio:y_fin+1, x_inicio:x_fin+1] = region_saturada
+            
+            return resultado
+            
+        except Exception as e:
+            self.log_with_timestamp("ERROR", f"Error saturando región: {e}")
+            return imagen
+
+    def procesar_soat_sin_monto(self, 
+                               tipo_soat: str,
+                               archivo_salida: str = "resultado_sin_monto.jpg",
+                               aplicar_mejoras: bool = True,
+                               factor_brillo: float = 1.3,
+                               dpi_conversion: int = 300,
+                               redimensionar_final: bool = False,
+                               ancho_final: int = 1694,
+                               alto_final: int = 3300,
+                               generar_pdf: bool = True) -> dict:
+        """Procesa SOAT sin monto - solo pega la imagen sin-monto.jpg"""
+        try:
+            # Buscar imagen sin monto
+            imagen_sin_monto = self.buscar_imagen_por_numero("sin-monto", tipo_soat)
+            if not imagen_sin_monto:
+                return {'success': False, 'error': 'No se encontró la imagen sin-monto.jpg'}
+            
+            # Convertir PDF a imagen
+            fondo = self.pdf_to_image_mejorada(tipo_soat, dpi_conversion, aplicar_mejoras, factor_brillo)
+            if fondo is None:
+                return {'success': False, 'error': f'No se pudo procesar el PDF de {tipo_soat}'}
+            
+            # Redimensionar fondo si está habilitado
+            if redimensionar_final:
+                fondo = self.redimensionar_resultado_final(fondo, ancho_final, alto_final)
+                
+                if aplicar_mejoras:
+                    fondo = self.saturar_region_rectangulo(fondo, 35, 2525, 1661, 2780, 1.6)
+            
+            # Cargar imagen sin monto
+            imagen_digito = cv2.imread(imagen_sin_monto)
+            if imagen_digito is None:
+                return {'success': False, 'error': 'No se pudo cargar la imagen sin-monto.jpg'}
+            
+            # Posiciones fijas para sin monto
+            posiciones_sin_monto = {
+                'protecta': {'x': 938, 'y': 1772},
+                'positiva': {'x': 824, 'y': 2116}
+            }
+            
+            x_posicion = posiciones_sin_monto[tipo_soat]['x']
+            y_posicion = posiciones_sin_monto[tipo_soat]['y']
+            
+            # Verificar límites
+            h_digito, w_digito = imagen_digito.shape[:2]
+            h_fondo, w_fondo = fondo.shape[:2]
+            
+            if x_posicion + w_digito > w_fondo or y_posicion + h_digito > h_fondo:
+                return {'success': False, 'error': 'La imagen sin-monto se sale de los límites del fondo'}
+            
+            # Pegar imagen sin monto
+            resultado = fondo.copy()
+            resultado[y_posicion:y_posicion+h_digito, x_posicion:x_posicion+w_digito] = imagen_digito
+            
+            # Guardar imagen final
+            cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            
+            # Generar PDF si está habilitado
+            archivo_pdf = None
+            if generar_pdf:
+                pdf_path = archivo_salida.replace('.jpg', '.pdf')
+                if self.convertir_imagen_a_pdf(archivo_salida, pdf_path):
+                    archivo_pdf = pdf_path
+            
+            return {
+                'success': True,
+                'mensaje': f'SOAT {tipo_soat.upper()} procesado correctamente SIN MONTO',
+                'tipo_soat': tipo_soat,
+                'imagen_origen': 'sin-monto.jpg (posición fija)',
+                'posicion_pegado': f'({x_posicion},{y_posicion})',
+                'dimensiones_finales': f'{resultado.shape[1]}x{resultado.shape[0]}',
+                'archivo_salida': archivo_salida,
+                'archivo_pdf': archivo_pdf,
+                'imagen_resultado': resultado
+            }
+            
+        except Exception as e:
+            self.log_with_timestamp("ERROR", f"Error procesando SOAT sin monto: {str(e)}")
+            return {'success': False, 'error': f'Error procesando SOAT sin monto: {str(e)}'}
+
     def restaurar_archivos_backup(self) -> dict:
-        """
-        Restaura los archivos PDF desde los backups
-        
-        Returns:
-            dict: Estado de la restauracion
-        """
+        """Restaura los archivos PDF desde los backups"""
         try:
             restaurados = []
             
@@ -768,6 +488,7 @@ class SOATProcessor:
                 'error': f'Error restaurando archivos: {str(e)}'
             }
 
+<<<<<<< HEAD
     def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.3) -> np.ndarray:
         """
         Aumenta el brillo de una imagen
@@ -1066,5 +787,10 @@ def main():
         print(f"[ERROR] Error: {resultado['error']}")
     """
 
+=======
+>>>>>>> tarea1
 if __name__ == "__main__":
-    main()
+    # Solo mostrar información básica en producción
+    processor = SOATProcessor()
+    print("Editor SOAT - Sistema de procesamiento de documentos")
+    print("Sistema listo para procesar documentos")
