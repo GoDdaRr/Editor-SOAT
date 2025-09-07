@@ -21,6 +21,9 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Instancia del procesador SOAT
 processor = SOATProcessor()
 
+# Variable global para almacenar el último identificador usado
+ultimo_identificador = None
+
 def log_with_timestamp(level: str, message: str):
     """Logging básico para producción"""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -35,11 +38,17 @@ def index():
 @app.route('/procesar_soat', methods=['POST'])
 def procesar_soat():
     """Procesa el SOAT con el monto ingresado"""
+    global ultimo_identificador
+    
     try:
         # Recibir datos del formulario
         archivo_pdf = request.files.get('pdf_file')
         monto = request.form.get('monto', '').strip()
         tipo_soat = request.form.get('tipo_soat')
+        identificador = request.form.get('identificador', '').strip()
+        
+        # Guardar identificador globalmente para las descargas
+        ultimo_identificador = identificador
         
         # Parámetros opcionales
         aplicar_mejoras = request.form.get('aplicar_mejoras', 'true').lower() == 'true'
@@ -85,8 +94,15 @@ def procesar_soat():
         if not processor.actualizar_archivo_pdf(tipo_soat, pdf_temp_path):
             return jsonify({'error': f'No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.'}), 500
         
-        # Procesar SOAT
-        resultado_filename = f"resultado_{tipo_soat}_{monto}_{pdf_filename.replace('.pdf', '.jpg')}"
+        # Generar nombre de archivo usando SOLO el identificador
+        if identificador:
+            # Limpiar identificador para usar como nombre de archivo
+            identificador_limpio = "".join(c for c in identificador if c.isalnum() or c in "._-")
+            resultado_filename = f"{identificador_limpio}.jpg"
+        else:
+            # Si no hay identificador, usar formato original
+            resultado_filename = f"resultado_{tipo_soat}_{monto}_{pdf_filename.replace('.pdf', '.jpg')}"
+        
         resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], resultado_filename)
         
         resultado = processor.procesar_soat_con_digitos(
@@ -160,10 +176,16 @@ def procesar_soat():
 @app.route('/procesar_soat_sin_monto', methods=['POST'])
 def procesar_soat_sin_monto():
     """Procesa el SOAT SIN monto"""
+    global ultimo_identificador
+    
     try:
         # Recibir datos del formulario
         archivo_pdf = request.files.get('pdf_file')
         tipo_soat = request.form.get('tipo_soat')
+        identificador = request.form.get('identificador', '').strip()
+        
+        # Guardar identificador globalmente para las descargas
+        ultimo_identificador = identificador
         
         # Parámetros opcionales
         aplicar_mejoras = request.form.get('aplicar_mejoras', 'true').lower() == 'true'
@@ -194,8 +216,15 @@ def procesar_soat_sin_monto():
         if not processor.actualizar_archivo_pdf(tipo_soat, pdf_temp_path):
             return jsonify({'error': f'No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.'}), 500
         
-        # Procesar SOAT SIN MONTO
-        resultado_filename = f"resultado_{tipo_soat}_SIN_MONTO_{pdf_filename.replace('.pdf', '.jpg')}"
+        # Generar nombre de archivo usando SOLO el identificador
+        if identificador:
+            # Limpiar identificador para usar como nombre de archivo
+            identificador_limpio = "".join(c for c in identificador if c.isalnum() or c in "._-")
+            resultado_filename = f"{identificador_limpio}.jpg"
+        else:
+            # Si no hay identificador, usar formato original
+            resultado_filename = f"resultado_{tipo_soat}_SIN_MONTO_{pdf_filename.replace('.pdf', '.jpg')}"
+        
         resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], resultado_filename)
         
         resultado = processor.procesar_soat_sin_monto(
@@ -256,53 +285,11 @@ def procesar_soat_sin_monto():
         log_with_timestamp("ERROR", f"Error del servidor: {str(e)}")
         return jsonify({'error': f'Error del servidor: {str(e)}'}), 500
 
-@app.route('/descargar_resultado')
-def descargar_resultado():
-    """Descargar el archivo SOAT procesado más reciente"""
-    try:
-        archivos_resultado = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
-                            if f.startswith('resultado_') and f.endswith('.jpg')]
-        
-        if not archivos_resultado:
-            return "No hay archivos procesados disponibles para descargar", 404
-        
-        archivo_mas_reciente = max(archivos_resultado, 
-                                 key=lambda x: os.path.getctime(os.path.join(app.config['UPLOAD_FOLDER'], x)))
-        resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
-        
-        if os.path.exists(resultado_path):
-            return send_file(resultado_path, as_attachment=True, download_name=archivo_mas_reciente)
-        return "Archivo no encontrado", 404
-        
-    except Exception as e:
-        log_with_timestamp("ERROR", f"Error descargando archivo: {str(e)}")
-        return f"Error descargando archivo: {str(e)}", 500
-
-@app.route('/descargar_pdf')
-def descargar_pdf():
-    """Descargar el archivo SOAT procesado en formato PDF más reciente"""
-    try:
-        archivos_pdf = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
-                       if f.startswith('resultado_') and f.endswith('.pdf')]
-        
-        if not archivos_pdf:
-            return "No hay archivos PDF procesados disponibles para descargar", 404
-        
-        archivo_mas_reciente = max(archivos_pdf, 
-                                 key=lambda x: os.path.getctime(os.path.join(app.config['UPLOAD_FOLDER'], x)))
-        resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
-        
-        if os.path.exists(resultado_path):
-            return send_file(resultado_path, as_attachment=True, download_name=archivo_mas_reciente)
-        return "Archivo PDF no encontrado", 404
-        
-    except Exception as e:
-        log_with_timestamp("ERROR", f"Error descargando archivo PDF: {str(e)}")
-        return f"Error descargando archivo PDF: {str(e)}", 500
-
 @app.route('/descargar_jpg')
 def descargar_jpg():
     """Descargar el archivo SOAT procesado en formato JPG más reciente"""
+    global ultimo_identificador
+    
     try:
         archivos_jpg = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
                        if f.startswith('resultado_') and f.endswith('.jpg')]
@@ -315,12 +302,48 @@ def descargar_jpg():
         resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
         
         if os.path.exists(resultado_path):
-            return send_file(resultado_path, as_attachment=True, download_name=archivo_mas_reciente)
+            # Usar el identificador como nombre de descarga si está disponible
+            if ultimo_identificador:
+                nombre_descarga = f"{ultimo_identificador}.jpg"
+            else:
+                nombre_descarga = archivo_mas_reciente
+            
+            return send_file(resultado_path, as_attachment=True, download_name=nombre_descarga)
         return "Archivo JPG no encontrado", 404
         
     except Exception as e:
         log_with_timestamp("ERROR", f"Error descargando archivo JPG: {str(e)}")
         return f"Error descargando archivo JPG: {str(e)}", 500
+
+@app.route('/descargar_pdf')
+def descargar_pdf():
+    """Descargar el archivo SOAT procesado en formato PDF más reciente"""
+    global ultimo_identificador
+    
+    try:
+        archivos_pdf = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
+                       if f.startswith('resultado_') and f.endswith('.pdf')]
+        
+        if not archivos_pdf:
+            return "No hay archivos PDF procesados disponibles para descargar", 404
+        
+        archivo_mas_reciente = max(archivos_pdf, 
+                                 key=lambda x: os.path.getctime(os.path.join(app.config['UPLOAD_FOLDER'], x)))
+        resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
+        
+        if os.path.exists(resultado_path):
+            # Usar el identificador como nombre de descarga si está disponible
+            if ultimo_identificador:
+                nombre_descarga = f"{ultimo_identificador}.pdf"
+            else:
+                nombre_descarga = archivo_mas_reciente
+            
+            return send_file(resultado_path, as_attachment=True, download_name=nombre_descarga)
+        return "Archivo PDF no encontrado", 404
+        
+    except Exception as e:
+        log_with_timestamp("ERROR", f"Error descargando archivo PDF: {str(e)}")
+        return f"Error descargando archivo PDF: {str(e)}", 500
 
 @app.route('/restaurar_archivos', methods=['POST'])
 def restaurar_archivos():

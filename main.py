@@ -488,7 +488,7 @@ class SOATProcessor:
                 'error': f'Error restaurando archivos: {str(e)}'
             }
 
-<<<<<<< HEAD
+
     def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.3) -> np.ndarray:
         """
         Aumenta el brillo de una imagen
@@ -672,13 +672,11 @@ class SOATProcessor:
             if redimensionar_final:
                 self.log_with_timestamp("INFO", f"Redimensionando fondo a {ancho_final}x{alto_final}")
                 fondo = self.redimensionar_resultado_final(fondo, ancho_final, alto_final)
-                self.guardar_imagen_intermedia(fondo, "fondo_redimensionado", tipo_soat)
                 
                 # Aplicar saturación a región específica (reutilizar función existente)
                 if aplicar_mejoras:
                     self.log_with_timestamp("INFO", "Aplicando saturación a región específica del fondo...")
                     fondo = self.saturar_region_rectangulo(fondo, 35, 2525, 1661, 2780, 1.6)
-                    self.guardar_imagen_intermedia(fondo, "fondo_region_saturada", tipo_soat)
             
             # 6. Configuración de posición fija para imagen sin-monto
             posiciones_sin_monto = {
@@ -722,7 +720,8 @@ class SOATProcessor:
             resultado[y_posicion:y_posicion+h_imagen, x_posicion:x_posicion+w_imagen] = imagen_sin_monto
             
             # 9. Guardar imagen intermedia del resultado
-            self.guardar_imagen_intermedia(resultado, "resultado_final_sin_monto", tipo_soat)
+            self.log_with_timestamp("INFO", f"Guardando imagen final: {archivo_salida}")
+            cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
             
             # 10. Guardar la imagen final
             self.log_with_timestamp("INFO", f"Guardando imagen final: {archivo_salida}")
@@ -787,8 +786,6 @@ def main():
         print(f"[ERROR] Error: {resultado['error']}")
     """
 
-=======
->>>>>>> tarea1
 if __name__ == "__main__":
     # Solo mostrar información básica en producción
     processor = SOATProcessor()
