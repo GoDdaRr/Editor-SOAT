@@ -411,7 +411,7 @@ class SOATProcessor:
             # Posiciones fijas para sin monto
             posiciones_sin_monto = {
                 'protecta': {'x': 938, 'y': 1772},
-                'positiva': {'x': 918, 'y': 2194}
+                'positiva': {'x': 824, 'y': 2116}
             }
             
             x_posicion = posiciones_sin_monto[tipo_soat]['x']
