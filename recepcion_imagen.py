@@ -21,9 +21,6 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Instancia del procesador SOAT
 processor = SOATProcessor()
 
-# Variable global para almacenar el último identificador usado
-ultimo_identificador = None
-
 def log_with_timestamp(level: str, message: str):
     """Logging básico para producción"""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -38,8 +35,6 @@ def index():
 @app.route('/procesar_soat', methods=['POST'])
 def procesar_soat():
     """Procesa el SOAT con el monto ingresado"""
-    global ultimo_identificador
-    
     try:
         # Recibir datos del formulario
         archivo_pdf = request.files.get('pdf_file')
@@ -48,7 +43,7 @@ def procesar_soat():
         identificador = request.form.get('identificador', '').strip()
         
         # Guardar identificador globalmente para las descargas
-        ultimo_identificador = identificador
+        # ultimo_identificador = identificador # Eliminado
         
         # Parámetros opcionales
         aplicar_mejoras = request.form.get('aplicar_mejoras', 'true').lower() == 'true'
@@ -176,8 +171,6 @@ def procesar_soat():
 @app.route('/procesar_soat_sin_monto', methods=['POST'])
 def procesar_soat_sin_monto():
     """Procesa el SOAT SIN monto"""
-    global ultimo_identificador
-    
     try:
         # Recibir datos del formulario
         archivo_pdf = request.files.get('pdf_file')
@@ -185,7 +178,7 @@ def procesar_soat_sin_monto():
         identificador = request.form.get('identificador', '').strip()
         
         # Guardar identificador globalmente para las descargas
-        ultimo_identificador = identificador
+        # ultimo_identificador = identificador # Eliminado
         
         # Parámetros opcionales
         aplicar_mejoras = request.form.get('aplicar_mejoras', 'true').lower() == 'true'
@@ -288,24 +281,30 @@ def procesar_soat_sin_monto():
 @app.route('/descargar_jpg')
 def descargar_jpg():
     """Descargar el archivo SOAT procesado en formato JPG más reciente"""
-    global ultimo_identificador
-    
     try:
-        archivos_jpg = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
-                       if f.startswith('resultado_') and f.endswith('.jpg')]
+        # Buscar archivos JPG que empiecen con identificador (nuevo formato)
+        archivos_jpg_identificador = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
+                                    if not f.startswith('resultado_') and f.endswith('.jpg')]
         
-        if not archivos_jpg:
+        # Si no hay archivos con identificador, buscar archivos con formato anterior
+        if not archivos_jpg_identificador:
+            archivos_jpg_identificador = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
+                                        if f.startswith('resultado_') and f.endswith('.jpg')]
+        
+        if not archivos_jpg_identificador:
             return "No hay archivos JPG procesados disponibles para descargar", 404
         
-        archivo_mas_reciente = max(archivos_jpg, 
+        archivo_mas_reciente = max(archivos_jpg_identificador, 
                                  key=lambda x: os.path.getctime(os.path.join(app.config['UPLOAD_FOLDER'], x)))
         resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
         
         if os.path.exists(resultado_path):
-            # Usar el identificador como nombre de descarga si está disponible
-            if ultimo_identificador:
-                nombre_descarga = f"{ultimo_identificador}.jpg"
+            # Extraer el identificador del nombre del archivo
+            if archivo_mas_reciente.startswith('resultado_'):
+                # Formato anterior: resultado_protecta_170_archivo.jpg
+                nombre_descarga = archivo_mas_reciente
             else:
+                # Nuevo formato: identificador.jpg
                 nombre_descarga = archivo_mas_reciente
             
             return send_file(resultado_path, as_attachment=True, download_name=nombre_descarga)
@@ -318,24 +317,30 @@ def descargar_jpg():
 @app.route('/descargar_pdf')
 def descargar_pdf():
     """Descargar el archivo SOAT procesado en formato PDF más reciente"""
-    global ultimo_identificador
-    
     try:
-        archivos_pdf = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
-                       if f.startswith('resultado_') and f.endswith('.pdf')]
+        # Buscar archivos PDF que empiecen con identificador (nuevo formato)
+        archivos_pdf_identificador = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
+                                    if not f.startswith('resultado_') and f.endswith('.pdf')]
         
-        if not archivos_pdf:
+        # Si no hay archivos con identificador, buscar archivos con formato anterior
+        if not archivos_pdf_identificador:
+            archivos_pdf_identificador = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
+                                        if f.startswith('resultado_') and f.endswith('.pdf')]
+        
+        if not archivos_pdf_identificador:
             return "No hay archivos PDF procesados disponibles para descargar", 404
         
-        archivo_mas_reciente = max(archivos_pdf, 
+        archivo_mas_reciente = max(archivos_pdf_identificador, 
                                  key=lambda x: os.path.getctime(os.path.join(app.config['UPLOAD_FOLDER'], x)))
         resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
         
         if os.path.exists(resultado_path):
-            # Usar el identificador como nombre de descarga si está disponible
-            if ultimo_identificador:
-                nombre_descarga = f"{ultimo_identificador}.pdf"
+            # Extraer el identificador del nombre del archivo
+            if archivo_mas_reciente.startswith('resultado_'):
+                # Formato anterior: resultado_protecta_170_archivo.pdf
+                nombre_descarga = archivo_mas_reciente
             else:
+                # Nuevo formato: identificador.pdf
                 nombre_descarga = archivo_mas_reciente
             
             return send_file(resultado_path, as_attachment=True, download_name=nombre_descarga)
