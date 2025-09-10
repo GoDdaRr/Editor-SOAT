@@ -229,6 +229,10 @@ class SOATProcessor:
                     'dimensiones': f'{w_digito}x{h_digito}'
                 })
             
+            # Aplicar saturación general a toda la imagen como paso final
+            factor_saturacion_final = 1.2  # CONFIGURABLE INTERNAMENTE
+            resultado = self.saturar_imagen_completa(resultado, factor_saturacion_final)
+            
             # Guardar la imagen final
             cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
             
@@ -372,6 +376,47 @@ class SOATProcessor:
             
         except Exception as e:
             self.log_with_timestamp("ERROR", f"Error saturando región: {e}")
+            return imagen
+
+    def saturar_imagen_completa(self, imagen: np.ndarray, factor_saturacion: float = 1.4) -> np.ndarray:
+        """
+        Aplica saturación a toda la imagen completa - PASO FINAL DE MEJORA
+        
+        Esta función se aplica al final del procesamiento, antes de la descarga,
+        para mejorar la saturación de colores de toda la imagen resultado.
+        
+        Args:
+            imagen: Imagen en formato OpenCV (numpy array)
+            factor_saturacion: Factor de saturación (1.0 = sin cambio, >1.0 = más saturado)
+            
+        Returns:
+            np.ndarray: Imagen con saturación aplicada a toda la imagen
+        """
+        try:
+            # Convertir a HSV para manipular saturación
+            imagen_hsv = cv2.cvtColor(imagen, cv2.COLOR_BGR2HSV)
+            
+            # Separar canales H, S, V
+            h, s, v = cv2.split(imagen_hsv)
+            
+            # Aumentar saturación (canal S) en toda la imagen
+            s_float = s.astype(np.float32)
+            s_saturada = s_float * factor_saturacion
+            
+            # Asegurar que esté en rango [0, 255]
+            s_saturada = np.clip(s_saturada, 0, 255).astype(np.uint8)
+            
+            # Recombinar canales
+            imagen_hsv_saturada = cv2.merge([h, s_saturada, v])
+            
+            # Convertir de vuelta a BGR
+            imagen_saturada = cv2.cvtColor(imagen_hsv_saturada, cv2.COLOR_HSV2BGR)
+            
+            self.log_with_timestamp("INFO", f"Saturación general aplicada con factor: {factor_saturacion}")
+            return imagen_saturada
+            
+        except Exception as e:
+            self.log_with_timestamp("ERROR", f"Error aplicando saturación general: {e}")
             return imagen
 
     def procesar_soat_sin_monto(self, 
@@ -548,7 +593,7 @@ class SOATProcessor:
             return imagen  # Retornar imagen original si hay error
 
     def saturar_region_rectangulo(self, imagen: np.ndarray, x1: int, y1: int, x2: int, y2: int, 
-                                 factor_saturacion: float = 1.6) -> np.ndarray:
+                                 factor_saturacion: float = 1.9) -> np.ndarray:
         """
         Satura una region rectangular definida por dos puntos especificos (x1,y1) y (x2,y2)
         Se aplica despues del redimensionamiento del fondo
@@ -718,6 +763,10 @@ class SOATProcessor:
             # 8. Crear copia del fondo y pegar imagen sin-monto
             resultado = fondo.copy()
             resultado[y_posicion:y_posicion+h_imagen, x_posicion:x_posicion+w_imagen] = imagen_sin_monto
+            
+            # Aplicar saturación general a toda la imagen como paso final
+            factor_saturacion_final = 1.2  # CONFIGURABLE INTERNAMENTE
+            resultado = self.saturar_imagen_completa(resultado, factor_saturacion_final)
             
             # 9. Guardar imagen intermedia del resultado
             self.log_with_timestamp("INFO", f"Guardando imagen final: {archivo_salida}")
