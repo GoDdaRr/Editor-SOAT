@@ -400,7 +400,7 @@ if __name__ == '__main__':
     # Iniciar servidor Flask para producción
     try:
         print("Iniciando servidor Flask en puerto 5000...")
-        app.run(debug=False, host='127.0.0.1', port=5000)
+        app.run(debug=False, host='0.0.0.0', port=5000)
     except KeyboardInterrupt:
         print("Servidor detenido por el usuario")
     except Exception as e:
