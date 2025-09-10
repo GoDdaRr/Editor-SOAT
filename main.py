@@ -31,10 +31,21 @@ class SOATProcessor:
         self.extensiones_imagen = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']
     
     def log_with_timestamp(self, level: str, message: str):
-        """Logging básico para producción"""
+        """Logging detallado para producción con formato ASCII"""
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if level in ['ERROR', 'WARNING']:
-            print(f"[{timestamp}] [{level}] {message}")
+        
+        # Símbolos ASCII para diferentes niveles
+        symbols = {
+            'INFO': '[i]',
+            'OK': '[+]',
+            'WARNING': '[!]',
+            'ERROR': '[x]',
+            'DEBUG': '[?]',
+            'STEP': '[>]'
+        }
+        
+        symbol = symbols.get(level, '[?]')
+        print(f"[{timestamp}] {symbol} {message}")
     
     def buscar_imagen_por_numero(self, numero: str, tipo_soat: str = "protecta") -> Optional[str]:
         """Busca una imagen en el sistema que contenga el numero en su nombre"""
@@ -150,36 +161,57 @@ class SOATProcessor:
                                 generar_pdf: bool = True) -> dict:
         """Procesa SOAT descomponiendo el número en dígitos individuales"""
         try:
+            self.log_with_timestamp("STEP", f"Iniciando procesamiento SOAT {tipo_soat.upper()} con monto: {numero}")
+            
             # Validar y descomponer número
+            self.log_with_timestamp("STEP", f"Validando numero: {numero}")
             if not self.validar_numero(numero):
+                self.log_with_timestamp("ERROR", f"Numero invalido: {numero}")
                 return {'success': False, 'error': 'El número ingresado no es válido.'}
+            
+            self.log_with_timestamp("OK", f"Numero validado correctamente")
             
             digitos = self.descomponer_numero_en_digitos(numero)
             if not digitos:
+                self.log_with_timestamp("ERROR", f"No se pudo descomponer el numero: {numero}")
                 return {'success': False, 'error': 'No se pudo descomponer el número en dígitos.'}
             
+            self.log_with_timestamp("OK", f"Numero descompuesto en digitos: {digitos}")
+            
             # Buscar imágenes para cada dígito
+            self.log_with_timestamp("STEP", f"Buscando imagenes para {len(digitos)} digitos...")
             imagenes_info, digitos_no_encontrados = self.buscar_imagenes_por_digitos(digitos, tipo_soat)
             
             if digitos_no_encontrados:
+                self.log_with_timestamp("ERROR", f"Digitos no encontrados: {digitos_no_encontrados}")
                 return {
                     'success': False, 
                     'error': f'No se encontraron imágenes para los dígitos: {", ".join(digitos_no_encontrados)}'
                 }
             
+            self.log_with_timestamp("OK", f"Todas las imagenes de digitos encontradas")
+            
             # Convertir PDF a imagen
+            self.log_with_timestamp("STEP", f"Convirtiendo PDF {tipo_soat} a imagen (DPI: {dpi_conversion})")
             fondo = self.pdf_to_image_mejorada(tipo_soat, dpi_conversion, aplicar_mejoras, factor_brillo)
             if fondo is None:
+                self.log_with_timestamp("ERROR", f"Error convirtiendo PDF de {tipo_soat}")
                 return {'success': False, 'error': f'No se pudo procesar el PDF de {tipo_soat}'}
+            
+            self.log_with_timestamp("OK", f"PDF convertido exitosamente, dimensiones: {fondo.shape[1]}x{fondo.shape[0]}")
             
             # Redimensionar fondo si está habilitado
             dimensiones_originales = f'{fondo.shape[1]}x{fondo.shape[0]}'
             
             if redimensionar_final:
+                self.log_with_timestamp("STEP", f"Redimensionando fondo a {ancho_final}x{alto_final}")
                 fondo = self.redimensionar_resultado_final(fondo, ancho_final, alto_final)
+                self.log_with_timestamp("OK", f"Fondo redimensionado correctamente")
                 
                 if aplicar_mejoras:
+                    self.log_with_timestamp("STEP", "Aplicando saturacion a region especifica...")
                     fondo = self.saturar_region_rectangulo(fondo, 35, 2525, 1661, 2780, 1.6)
+                    self.log_with_timestamp("OK", "Saturacion de region aplicada")
             
             # Configuración de posiciones fijas para cada dígito
             posiciones_digitos = {
@@ -196,6 +228,7 @@ class SOATProcessor:
             }
             
             # Procesar cada dígito en su posición fija
+            self.log_with_timestamp("STEP", f"Pegando {len(imagenes_info)} digitos en posiciones fijas...")
             resultado = fondo.copy()
             imagenes_pegadas = []
             
@@ -203,12 +236,15 @@ class SOATProcessor:
                 if not img_info['encontrada']:
                     continue
                 
+                self.log_with_timestamp("STEP", f"Cargando imagen para digito '{img_info['digito']}' desde: {img_info['ruta']}")
                 imagen_digito = cv2.imread(img_info['ruta'])
                 if imagen_digito is None:
+                    self.log_with_timestamp("ERROR", f"No se pudo cargar imagen para digito '{img_info['digito']}'")
                     continue
                 
                 posicion_digito = img_info['posicion']
                 if posicion_digito not in posiciones_digitos[tipo_soat]:
+                    self.log_with_timestamp("ERROR", f"Posicion {posicion_digito} no definida para {tipo_soat}")
                     continue
                 
                 x_posicion = posiciones_digitos[tipo_soat][posicion_digito]['x']
@@ -217,10 +253,14 @@ class SOATProcessor:
                 h_digito, w_digito = imagen_digito.shape[:2]
                 h_fondo, w_fondo = resultado.shape[:2]
                 
+                self.log_with_timestamp("INFO", f"Pegando digito '{img_info['digito']}' ({w_digito}x{h_digito}) en posicion ({x_posicion},{y_posicion})")
+                
                 if x_posicion + w_digito > w_fondo or y_posicion + h_digito > h_fondo:
+                    self.log_with_timestamp("ERROR", f"Digito '{img_info['digito']}' se sale de los limites del fondo")
                     continue
                 
                 resultado[y_posicion:y_posicion+h_digito, x_posicion:x_posicion+w_digito] = imagen_digito
+                self.log_with_timestamp("OK", f"Digito '{img_info['digito']}' pegado exitosamente")
                 
                 imagenes_pegadas.append({
                     'digito': img_info['digito'],
@@ -229,19 +269,32 @@ class SOATProcessor:
                     'dimensiones': f'{w_digito}x{h_digito}'
                 })
             
+            self.log_with_timestamp("OK", f"Todos los digitos pegados correctamente")
+            
             # Aplicar saturación general a toda la imagen como paso final
+            self.log_with_timestamp("STEP", "Aplicando saturacion general a toda la imagen...")
             factor_saturacion_final = 1.2  # CONFIGURABLE INTERNAMENTE
             resultado = self.saturar_imagen_completa(resultado, factor_saturacion_final)
+            self.log_with_timestamp("OK", "Saturacion general aplicada")
             
             # Guardar la imagen final
+            self.log_with_timestamp("STEP", f"Guardando imagen final: {archivo_salida}")
             cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            self.log_with_timestamp("OK", f"Imagen guardada exitosamente")
             
             # Generar PDF si está habilitado
             archivo_pdf = None
             if generar_pdf:
                 pdf_path = archivo_salida.replace('.jpg', '.pdf')
+                self.log_with_timestamp("STEP", f"Generando PDF: {pdf_path}")
                 if self.convertir_imagen_a_pdf(archivo_salida, pdf_path):
                     archivo_pdf = pdf_path
+                    self.log_with_timestamp("OK", f"PDF generado exitosamente")
+                else:
+                    self.log_with_timestamp("WARNING", "No se pudo generar el PDF")
+            
+            self.log_with_timestamp("OK", f"Procesamiento SOAT {tipo_soat.upper()} completado exitosamente")
+            self.log_with_timestamp("INFO", f"Resumen: {len(digitos)} digitos procesados, dimensiones finales: {resultado.shape[1]}x{resultado.shape[0]}")
             
             return {
                 'success': True,
@@ -294,12 +347,16 @@ class SOATProcessor:
                              factor_brillo: float = 1.3) -> Optional[np.ndarray]:
         """Convierte PDF a imagen con mejoras configurables"""
         try:
+            self.log_with_timestamp("STEP", f"Convirtiendo PDF {tipo_soat} a imagen...")
+            
             if tipo_soat == 'protecta':
                 archivo_pdf = self.archivo_protecta
             elif tipo_soat == 'positiva':
                 archivo_pdf = self.archivo_positiva
             else:
                 raise ValueError("tipo_soat debe ser 'protecta' o 'positiva'")
+            
+            self.log_with_timestamp("INFO", f"Archivo PDF: {archivo_pdf}")
             
             if not os.path.exists(archivo_pdf):
                 raise FileNotFoundError(f"No se encuentra el archivo: {archivo_pdf}")
@@ -308,16 +365,24 @@ class SOATProcessor:
                 self.log_with_timestamp("ERROR", "Poppler no configurado correctamente")
                 return None
             
+            self.log_with_timestamp("INFO", f"Usando Poppler en: {self.poppler_path}")
+            
             # Convertir PDF a imagen
+            self.log_with_timestamp("STEP", f"Ejecutando conversion PDF->imagen (DPI: {dpi})")
             pages = convert_from_path(archivo_pdf, dpi=dpi, poppler_path=self.poppler_path)
             page = pages[0]
+            self.log_with_timestamp("OK", f"PDF convertido, dimensiones: {page.size}")
             
             # Convertir a formato OpenCV
+            self.log_with_timestamp("STEP", "Convirtiendo a formato OpenCV...")
             imagen_cv = cv2.cvtColor(np.array(page), cv2.COLOR_RGB2BGR)
+            self.log_with_timestamp("OK", f"Conversion OpenCV completada, dimensiones: {imagen_cv.shape}")
             
             # Aplicar mejoras si está habilitado
             if aplicar_mejoras:
+                self.log_with_timestamp("STEP", f"Aplicando aumento de brillo (factor: {factor_brillo})")
                 imagen_cv = self.aumentar_brillo(imagen_cv, factor_brillo=factor_brillo)
+                self.log_with_timestamp("OK", "Brillo aplicado correctamente")
             
             return imagen_cv
             
@@ -328,10 +393,13 @@ class SOATProcessor:
     def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.3) -> np.ndarray:
         """Aumenta el brillo de una imagen"""
         try:
+            self.log_with_timestamp("STEP", f"Aplicando aumento de brillo (factor: {factor_brillo})")
             imagen_float = imagen.astype(np.float32)
             imagen_brillante = imagen_float * factor_brillo
             imagen_brillante = np.clip(imagen_brillante, 0, 255)
-            return imagen_brillante.astype(np.uint8)
+            resultado = imagen_brillante.astype(np.uint8)
+            self.log_with_timestamp("OK", f"Brillo aumentado correctamente")
+            return resultado
         except Exception as e:
             self.log_with_timestamp("ERROR", f"Error aumentando brillo: {e}")
             return imagen
@@ -339,7 +407,11 @@ class SOATProcessor:
     def redimensionar_resultado_final(self, imagen: np.ndarray, ancho_objetivo: int = 1694, alto_objetivo: int = 3300) -> np.ndarray:
         """Redimensiona la imagen final a un tamaño específico"""
         try:
-            return cv2.resize(imagen, (ancho_objetivo, alto_objetivo), interpolation=cv2.INTER_CUBIC)
+            alto_actual, ancho_actual = imagen.shape[:2]
+            self.log_with_timestamp("STEP", f"Redimensionando imagen de {ancho_actual}x{alto_actual} a {ancho_objetivo}x{alto_objetivo}")
+            resultado = cv2.resize(imagen, (ancho_objetivo, alto_objetivo), interpolation=cv2.INTER_CUBIC)
+            self.log_with_timestamp("OK", f"Imagen redimensionada correctamente")
+            return resultado
         except Exception as e:
             self.log_with_timestamp("ERROR", f"Error redimensionando imagen: {e}")
             return imagen
@@ -348,6 +420,7 @@ class SOATProcessor:
                              factor_saturacion: float = 1.6) -> np.ndarray:
         """Satura una región rectangular específica"""
         try:
+            self.log_with_timestamp("STEP", f"Saturando region rectangular ({x1},{y1}) a ({x2},{y2}) con factor {factor_saturacion}")
             resultado = imagen.copy()
             h_img, w_img = imagen.shape[:2]
             
@@ -357,6 +430,7 @@ class SOATProcessor:
             y_fin = max(y1, y2)
             
             if x_inicio < 0 or y_inicio < 0 or x_fin >= w_img or y_fin >= h_img:
+                self.log_with_timestamp("ERROR", f"Region fuera de limites de la imagen")
                 return imagen
             
             region = imagen[y_inicio:y_fin+1, x_inicio:x_fin+1].copy()
@@ -371,6 +445,10 @@ class SOATProcessor:
             region_saturada = cv2.cvtColor(region_hsv_saturada, cv2.COLOR_HSV2BGR)
             
             resultado[y_inicio:y_fin+1, x_inicio:x_fin+1] = region_saturada
+            
+            ancho = x_fin - x_inicio + 1
+            alto = y_fin - y_inicio + 1
+            self.log_with_timestamp("OK", f"Region saturada: {ancho}x{alto} pixeles")
             
             return resultado
             
@@ -412,7 +490,7 @@ class SOATProcessor:
             # Convertir de vuelta a BGR
             imagen_saturada = cv2.cvtColor(imagen_hsv_saturada, cv2.COLOR_HSV2BGR)
             
-            self.log_with_timestamp("INFO", f"Saturación general aplicada con factor: {factor_saturacion}")
+            self.log_with_timestamp("OK", f"Saturación general aplicada con factor: {factor_saturacion}")
             return imagen_saturada
             
         except Exception as e:

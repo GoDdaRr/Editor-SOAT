@@ -22,10 +22,21 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 processor = SOATProcessor()
 
 def log_with_timestamp(level: str, message: str):
-    """Logging básico para producción"""
+    """Logging detallado para producción con formato ASCII"""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if level in ['ERROR', 'WARNING']:
-        print(f"[{timestamp}] [{level}] {message}")
+    
+    # Símbolos ASCII para diferentes niveles
+    symbols = {
+        'INFO': '[i]',
+        'OK': '[+]',
+        'WARNING': '[!]',
+        'ERROR': '[x]',
+        'DEBUG': '[?]',
+        'STEP': '[>]'
+    }
+    
+    symbol = symbols.get(level, '[?]')
+    print(f"[{timestamp}] {symbol} {message}")
 
 @app.route('/')
 def index():
@@ -36,11 +47,15 @@ def index():
 def procesar_soat():
     """Procesa el SOAT con el monto ingresado"""
     try:
+        log_with_timestamp("STEP", "=== INICIANDO PROCESAMIENTO SOAT CON MONTO ===")
+        
         # Recibir datos del formulario
         archivo_pdf = request.files.get('pdf_file')
         monto = request.form.get('monto', '').strip()
         tipo_soat = request.form.get('tipo_soat')
         identificador = request.form.get('identificador', '').strip()
+        
+        log_with_timestamp("INFO", f"Datos recibidos - Tipo: {tipo_soat}, Monto: {monto}, ID: {identificador}")
         
         # Guardar identificador globalmente para las descargas
         # ultimo_identificador = identificador # Eliminado
@@ -51,19 +66,29 @@ def procesar_soat():
         dpi_conversion = int(request.form.get('dpi', '300'))
         generar_pdf = request.form.get('generar_pdf', 'true').lower() == 'true'
         
+        log_with_timestamp("INFO", f"Parametros - Mejoras: {aplicar_mejoras}, Brillo: {factor_brillo}, DPI: {dpi_conversion}, PDF: {generar_pdf}")
+        
         # Validaciones básicas
+        log_with_timestamp("STEP", "Validando datos de entrada...")
+        
         if not archivo_pdf:
+            log_with_timestamp("ERROR", "No se subio archivo PDF")
             return jsonify({'error': 'No se subió ningún archivo PDF'}), 400
             
         if not monto:
+            log_with_timestamp("ERROR", "No se ingreso monto")
             return jsonify({'error': 'Debe ingresar un monto'}), 400
             
         if not tipo_soat or tipo_soat not in ['protecta', 'positiva']:
+            log_with_timestamp("ERROR", f"Tipo de SOAT invalido: {tipo_soat}")
             return jsonify({'error': 'Debe seleccionar el tipo de SOAT (Protecta o Positiva)'}), 400
         
         # Validar que el monto sea un número válido
         if not processor.validar_numero(monto):
+            log_with_timestamp("ERROR", f"Monto invalido: {monto}")
             return jsonify({'error': 'El monto ingresado no es válido. Use solo números y decimales (ej: 170.00)'}), 400
+        
+        log_with_timestamp("OK", "Validaciones completadas exitosamente")
         
         # Validar parámetros de mejora
         if factor_brillo < 0.5 or factor_brillo > 2.0:
@@ -73,23 +98,35 @@ def procesar_soat():
             dpi_conversion = 300
         
         # Guardar archivo PDF temporalmente
+        log_with_timestamp("STEP", f"Guardando archivo PDF temporalmente...")
         pdf_filename = secure_filename(archivo_pdf.filename)
         pdf_temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{pdf_filename}")
         
+        log_with_timestamp("INFO", f"Archivo original: {archivo_pdf.filename}")
+        log_with_timestamp("INFO", f"Ruta temporal: {pdf_temp_path}")
+        
         try:
             archivo_pdf.save(pdf_temp_path)
+            log_with_timestamp("OK", "Archivo PDF guardado temporalmente")
         except Exception as e:
+            log_with_timestamp("ERROR", f"Error guardando archivo PDF: {str(e)}")
             return jsonify({'error': f'Error guardando archivo PDF: {str(e)}'}), 500
         
         # Verificar que el archivo se guardó correctamente
         if not os.path.exists(pdf_temp_path):
+            log_with_timestamp("ERROR", "Archivo PDF no se guardo correctamente")
             return jsonify({'error': 'Error guardando archivo PDF'}), 500
         
         # Actualizar archivo PDF correspondiente
+        log_with_timestamp("STEP", f"Actualizando archivo PDF de {tipo_soat}...")
         if not processor.actualizar_archivo_pdf(tipo_soat, pdf_temp_path):
+            log_with_timestamp("ERROR", f"No se pudo actualizar el archivo {tipo_soat}")
             return jsonify({'error': f'No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.'}), 500
         
+        log_with_timestamp("OK", f"Archivo PDF {tipo_soat} actualizado correctamente")
+        
         # Generar nombre de archivo usando SOLO el identificador
+        log_with_timestamp("STEP", "Generando nombre de archivo resultado...")
         if identificador:
             # Limpiar identificador para usar como nombre de archivo
             identificador_limpio = "".join(c for c in identificador if c.isalnum() or c in "._-")
@@ -99,7 +136,10 @@ def procesar_soat():
             resultado_filename = f"resultado_{tipo_soat}_{monto}_{pdf_filename.replace('.pdf', '.jpg')}"
         
         resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], resultado_filename)
+        log_with_timestamp("INFO", f"Archivo resultado: {resultado_filename}")
         
+        # Procesar SOAT con dígitos
+        log_with_timestamp("STEP", "Iniciando procesamiento de SOAT con digitos...")
         resultado = processor.procesar_soat_con_digitos(
             tipo_soat=tipo_soat,
             numero=monto,
@@ -114,21 +154,29 @@ def procesar_soat():
         )
         
         # Limpiar archivo temporal
+        log_with_timestamp("STEP", "Limpiando archivo temporal...")
         try:
             os.remove(pdf_temp_path)
+            log_with_timestamp("OK", "Archivo temporal eliminado")
         except:
-            pass
+            log_with_timestamp("WARNING", "No se pudo eliminar archivo temporal")
         
         if resultado['success']:
+            log_with_timestamp("OK", "Procesamiento completado exitosamente")
+            
             # Obtener la imagen resultado del procesamiento
             imagen_resultado = resultado['imagen_resultado']
             
             # Guardar la imagen en el servidor
+            log_with_timestamp("STEP", "Guardando imagen resultado en servidor...")
             cv2.imwrite(resultado_path, imagen_resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            log_with_timestamp("OK", "Imagen guardada en servidor")
             
             # Convertir la imagen a base64 para mostrar en el frontend
+            log_with_timestamp("STEP", "Convirtiendo imagen a base64 para frontend...")
             _, buffer = cv2.imencode('.jpg', imagen_resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
             img_base64 = base64.b64encode(buffer).decode('utf-8')
+            log_with_timestamp("OK", "Imagen convertida a base64")
             
             # Información del procesamiento
             info_procesamiento = {
@@ -141,6 +189,8 @@ def procesar_soat():
                 'posiciones_utilizadas': resultado.get('posiciones_utilizadas', {}),
                 'pdf_generado': resultado.get('archivo_pdf') is not None
             }
+            
+            log_with_timestamp("OK", "=== PROCESAMIENTO SOAT CON MONTO COMPLETADO EXITOSAMENTE ===")
             
             return jsonify({
                 'success': True,
@@ -160,6 +210,7 @@ def procesar_soat():
                 'info_procesamiento': info_procesamiento
             })
         else:
+            log_with_timestamp("ERROR", f"Error en procesamiento: {resultado['error']}")
             return jsonify({'error': resultado['error']}), 400
         
     except ValueError as ve:
@@ -172,10 +223,14 @@ def procesar_soat():
 def procesar_soat_sin_monto():
     """Procesa el SOAT SIN monto"""
     try:
+        log_with_timestamp("STEP", "=== INICIANDO PROCESAMIENTO SOAT SIN MONTO ===")
+        
         # Recibir datos del formulario
         archivo_pdf = request.files.get('pdf_file')
         tipo_soat = request.form.get('tipo_soat')
         identificador = request.form.get('identificador', '').strip()
+        
+        log_with_timestamp("INFO", f"Datos recibidos - Tipo: {tipo_soat}, ID: {identificador}")
         
         # Guardar identificador globalmente para las descargas
         # ultimo_identificador = identificador # Eliminado
@@ -186,12 +241,20 @@ def procesar_soat_sin_monto():
         dpi_conversion = int(request.form.get('dpi', '300'))
         generar_pdf = request.form.get('generar_pdf', 'true').lower() == 'true'
         
+        log_with_timestamp("INFO", f"Parametros - Mejoras: {aplicar_mejoras}, Brillo: {factor_brillo}, DPI: {dpi_conversion}, PDF: {generar_pdf}")
+        
         # Validaciones básicas
+        log_with_timestamp("STEP", "Validando datos de entrada...")
+        
         if not archivo_pdf:
+            log_with_timestamp("ERROR", "No se subio archivo PDF")
             return jsonify({'error': 'No se subió ningún archivo PDF'}), 400
             
         if not tipo_soat or tipo_soat not in ['protecta', 'positiva']:
+            log_with_timestamp("ERROR", f"Tipo de SOAT invalido: {tipo_soat}")
             return jsonify({'error': 'Debe seleccionar el tipo de SOAT (Protecta o Positiva)'}), 400
+        
+        log_with_timestamp("OK", "Validaciones completadas exitosamente")
         
         # Validar parámetros de mejora
         if factor_brillo < 0.5 or factor_brillo > 2.0:
