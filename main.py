@@ -273,7 +273,7 @@ class SOATProcessor:
             
             # Aplicar saturación general a toda la imagen como paso final
             self.log_with_timestamp("STEP", "Aplicando saturacion general a toda la imagen...")
-            factor_saturacion_final = 1.2  # CONFIGURABLE INTERNAMENTE
+            factor_saturacion_final = 1.8  # CONFIGURABLE INTERNAMENTE
             resultado = self.saturar_imagen_completa(resultado, factor_saturacion_final)
             self.log_with_timestamp("OK", "Saturacion general aplicada")
             
@@ -344,7 +344,7 @@ class SOATProcessor:
             return False
     
     def pdf_to_image_mejorada(self, tipo_soat: str, dpi: int = 300, aplicar_mejoras: bool = True, 
-                             factor_brillo: float = 1.3) -> Optional[np.ndarray]:
+                             factor_brillo: float = 1.2) -> Optional[np.ndarray]:
         """Convierte PDF a imagen con mejoras configurables"""
         try:
             self.log_with_timestamp("STEP", f"Convirtiendo PDF {tipo_soat} a imagen...")
@@ -390,7 +390,7 @@ class SOATProcessor:
             self.log_with_timestamp("ERROR", f"Error convirtiendo PDF a imagen: {e}")
             return None
 
-    def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.3) -> np.ndarray:
+    def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.2) -> np.ndarray:
         """Aumenta el brillo de una imagen"""
         try:
             self.log_with_timestamp("STEP", f"Aplicando aumento de brillo (factor: {factor_brillo})")
@@ -456,7 +456,7 @@ class SOATProcessor:
             self.log_with_timestamp("ERROR", f"Error saturando región: {e}")
             return imagen
 
-    def saturar_imagen_completa(self, imagen: np.ndarray, factor_saturacion: float = 1.4) -> np.ndarray:
+    def saturar_imagen_completa(self, imagen: np.ndarray, factor_saturacion: float = 1.9) -> np.ndarray:
         """
         Aplica saturación a toda la imagen completa - PASO FINAL DE MEJORA
         
@@ -501,7 +501,7 @@ class SOATProcessor:
                                tipo_soat: str,
                                archivo_salida: str = "resultado_sin_monto.jpg",
                                aplicar_mejoras: bool = True,
-                               factor_brillo: float = 1.3,
+                               factor_brillo: float = 1.2,
                                dpi_conversion: int = 300,
                                redimensionar_final: bool = False,
                                ancho_final: int = 1694,
@@ -612,7 +612,7 @@ class SOATProcessor:
             }
 
 
-    def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.3) -> np.ndarray:
+    def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.2) -> np.ndarray:
         """
         Aumenta el brillo de una imagen
         
@@ -738,7 +738,7 @@ class SOATProcessor:
             return imagen
 
     def procesar_soat_sin_monto(self, tipo_soat: str, archivo_salida: str, 
-                                aplicar_mejoras: bool = True, factor_brillo: float = 1.3,
+                                aplicar_mejoras: bool = True, factor_brillo: float = 1.2,
                                 dpi_conversion: int = 300, redimensionar_final: bool = True,
                                 ancho_final: int = 1694, alto_final: int = 3300,
                                 generar_pdf: bool = True) -> dict:
@@ -843,7 +843,7 @@ class SOATProcessor:
             resultado[y_posicion:y_posicion+h_imagen, x_posicion:x_posicion+w_imagen] = imagen_sin_monto
             
             # Aplicar saturación general a toda la imagen como paso final
-            factor_saturacion_final = 1.2  # CONFIGURABLE INTERNAMENTE
+            factor_saturacion_final = 1.8  # CONFIGURABLE INTERNAMENTE
             resultado = self.saturar_imagen_completa(resultado, factor_saturacion_final)
             
             # 9. Guardar imagen intermedia del resultado
