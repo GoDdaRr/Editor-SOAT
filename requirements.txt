@@ -1,17 +1,18 @@
 # Dependencias principales del proyecto Editor SOAT
 
-# Flask y dependencias web
+# Flask y servidor de producción
 Flask==2.3.3
 Werkzeug==2.3.7
+gunicorn==21.2.0
 
 # Procesamiento de imágenes
-opencv-python==4.8.1.78
+opencv-python-headless==4.8.1.78
 Pillow==10.0.1
 numpy==1.24.3
 
-# Procesamiento de PDFs
+# Conversión de PDFs (requiere Poppler instalado en el sistema)
 pdf2image==1.16.3
-PyMuPDF==1.23.8
 
-# Dependencias del sistema (opcionales pero recomendadas)
-python-magic==0.4.27
+# OCR para detección automática del identificador (placa).
+# Requiere el binario de Tesseract instalado en el sistema.
+pytesseract==0.3.10

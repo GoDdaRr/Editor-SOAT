@@ -116,15 +116,7 @@ def procesar_soat():
         if not os.path.exists(pdf_temp_path):
             log_with_timestamp("ERROR", "Archivo PDF no se guardo correctamente")
             return jsonify({'error': 'Error guardando archivo PDF'}), 500
-        
-        # Actualizar archivo PDF correspondiente
-        log_with_timestamp("STEP", f"Actualizando archivo PDF de {tipo_soat}...")
-        if not processor.actualizar_archivo_pdf(tipo_soat, pdf_temp_path):
-            log_with_timestamp("ERROR", f"No se pudo actualizar el archivo {tipo_soat}")
-            return jsonify({'error': f'No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.'}), 500
-        
-        log_with_timestamp("OK", f"Archivo PDF {tipo_soat} actualizado correctamente")
-        
+
         # Generar nombre de archivo usando SOLO el identificador
         log_with_timestamp("STEP", "Generando nombre de archivo resultado...")
         if identificador:
@@ -140,9 +132,13 @@ def procesar_soat():
         
         # Procesar SOAT con dígitos
         log_with_timestamp("STEP", "Iniciando procesamiento de SOAT con digitos...")
+        # Parámetro para detección automática
+        detectar_identificador_auto = request.form.get('detectar_identificador_auto', 'true').lower() == 'true'
+        
         resultado = processor.procesar_soat_con_digitos(
             tipo_soat=tipo_soat,
             numero=monto,
+            pdf_path=pdf_temp_path,
             archivo_salida=resultado_path,
             aplicar_mejoras=aplicar_mejoras,
             factor_brillo=factor_brillo,
@@ -150,7 +146,8 @@ def procesar_soat():
             redimensionar_final=True,
             ancho_final=1694,
             alto_final=3300,
-            generar_pdf=True
+            generar_pdf=True,
+            detectar_identificador_auto=detectar_identificador_auto
         )
         
         # Limpiar archivo temporal
@@ -165,13 +162,9 @@ def procesar_soat():
             log_with_timestamp("OK", "Procesamiento completado exitosamente")
             
             # Obtener la imagen resultado del procesamiento
+            # (procesar_soat_con_digitos ya guardó el JPG y el PDF en disco)
             imagen_resultado = resultado['imagen_resultado']
-            
-            # Guardar la imagen en el servidor
-            log_with_timestamp("STEP", "Guardando imagen resultado en servidor...")
-            cv2.imwrite(resultado_path, imagen_resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
-            log_with_timestamp("OK", "Imagen guardada en servidor")
-            
+
             # Convertir la imagen a base64 para mostrar en el frontend
             log_with_timestamp("STEP", "Convirtiendo imagen a base64 para frontend...")
             _, buffer = cv2.imencode('.jpg', imagen_resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
@@ -207,7 +200,9 @@ def procesar_soat():
                 'archivo_resultado': resultado_filename,
                 'archivo_pdf': resultado.get('archivo_pdf'),
                 'pdf_disponible': resultado.get('archivo_pdf') is not None,
-                'info_procesamiento': info_procesamiento
+                'info_procesamiento': info_procesamiento,
+                'identificador_detectado': resultado.get('identificador_detectado', ''),
+                'identificador_usado': resultado.get('identificador_usado', 'manual')
             })
         else:
             log_with_timestamp("ERROR", f"Error en procesamiento: {resultado['error']}")
@@ -229,11 +224,9 @@ def procesar_soat_sin_monto():
         archivo_pdf = request.files.get('pdf_file')
         tipo_soat = request.form.get('tipo_soat')
         identificador = request.form.get('identificador', '').strip()
+        detectar_identificador_auto = request.form.get('detectar_identificador_auto', 'false').lower() == 'true'
         
-        log_with_timestamp("INFO", f"Datos recibidos - Tipo: {tipo_soat}, ID: {identificador}")
-        
-        # Guardar identificador globalmente para las descargas
-        # ultimo_identificador = identificador # Eliminado
+        log_with_timestamp("INFO", f"Datos recibidos - Tipo: {tipo_soat}, ID: {identificador}, Auto: {detectar_identificador_auto}")
         
         # Parámetros opcionales
         aplicar_mejoras = request.form.get('aplicar_mejoras', 'true').lower() == 'true'
@@ -267,11 +260,7 @@ def procesar_soat_sin_monto():
         pdf_filename = secure_filename(archivo_pdf.filename)
         pdf_temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{pdf_filename}")
         archivo_pdf.save(pdf_temp_path)
-        
-        # Actualizar archivo PDF correspondiente
-        if not processor.actualizar_archivo_pdf(tipo_soat, pdf_temp_path):
-            return jsonify({'error': f'No se pudo actualizar el archivo {tipo_soat}. Verifique que el PDF sea válido.'}), 500
-        
+
         # Generar nombre de archivo usando SOLO el identificador
         if identificador:
             # Limpiar identificador para usar como nombre de archivo
@@ -285,6 +274,7 @@ def procesar_soat_sin_monto():
         
         resultado = processor.procesar_soat_sin_monto(
             tipo_soat=tipo_soat,
+            pdf_path=pdf_temp_path,
             archivo_salida=resultado_path,
             aplicar_mejoras=aplicar_mejoras,
             factor_brillo=factor_brillo,
@@ -292,7 +282,8 @@ def procesar_soat_sin_monto():
             redimensionar_final=True,
             ancho_final=1694,
             alto_final=3300,
-            generar_pdf=True
+            generar_pdf=True,
+            detectar_identificador_auto=detectar_identificador_auto
         )
         
         # Limpiar archivo temporal
@@ -330,7 +321,9 @@ def procesar_soat_sin_monto():
                 'archivo_resultado': resultado_filename,
                 'archivo_pdf': resultado.get('archivo_pdf'),
                 'pdf_disponible': resultado.get('archivo_pdf') is not None,
-                'info_procesamiento': info_procesamiento
+                'info_procesamiento': info_procesamiento,
+                'identificador_detectado': resultado.get('identificador_detectado', ''),
+                'identificador_usado': resultado.get('identificador_usado', 'manual')
             })
         else:
             return jsonify({'error': resultado['error']}), 400
@@ -341,92 +334,47 @@ def procesar_soat_sin_monto():
         log_with_timestamp("ERROR", f"Error del servidor: {str(e)}")
         return jsonify({'error': f'Error del servidor: {str(e)}'}), 500
 
+def _descargar_resultado(nombre_solicitado: str, extension: str):
+    """Sirve el archivo resultado pedido (por nombre) o el más reciente como fallback.
+
+    Recibir el nombre concreto evita que, con varias peticiones simultáneas,
+    un usuario descargue el SOAT generado por otro.
+    """
+    carpeta = app.config['UPLOAD_FOLDER']
+
+    # 1. Si el cliente indicó el archivo, servir exactamente ese (saneado).
+    if nombre_solicitado:
+        base = os.path.splitext(secure_filename(nombre_solicitado))[0] + extension
+        ruta = os.path.join(carpeta, base)
+        if os.path.isfile(ruta):
+            return send_file(ruta, as_attachment=True, download_name=base)
+
+    # 2. Fallback: archivo más reciente con esa extensión (excluyendo temporales).
+    candidatos = [f for f in os.listdir(carpeta)
+                  if f.endswith(extension) and not f.startswith('temp_')]
+    if not candidatos:
+        return f"No hay archivos {extension} procesados disponibles para descargar", 404
+
+    reciente = max(candidatos, key=lambda x: os.path.getctime(os.path.join(carpeta, x)))
+    return send_file(os.path.join(carpeta, reciente), as_attachment=True, download_name=reciente)
+
 @app.route('/descargar_jpg')
 def descargar_jpg():
-    """Descargar el archivo SOAT procesado en formato JPG más reciente"""
+    """Descargar el SOAT procesado en formato JPG"""
     try:
-        # Buscar archivos JPG que empiecen con identificador (nuevo formato)
-        archivos_jpg_identificador = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
-                                    if not f.startswith('resultado_') and f.endswith('.jpg')]
-        
-        # Si no hay archivos con identificador, buscar archivos con formato anterior
-        if not archivos_jpg_identificador:
-            archivos_jpg_identificador = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
-                                        if f.startswith('resultado_') and f.endswith('.jpg')]
-        
-        if not archivos_jpg_identificador:
-            return "No hay archivos JPG procesados disponibles para descargar", 404
-        
-        archivo_mas_reciente = max(archivos_jpg_identificador, 
-                                 key=lambda x: os.path.getctime(os.path.join(app.config['UPLOAD_FOLDER'], x)))
-        resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
-        
-        if os.path.exists(resultado_path):
-            # Extraer el identificador del nombre del archivo
-            if archivo_mas_reciente.startswith('resultado_'):
-                # Formato anterior: resultado_protecta_170_archivo.jpg
-                nombre_descarga = archivo_mas_reciente
-            else:
-                # Nuevo formato: identificador.jpg
-                nombre_descarga = archivo_mas_reciente
-            
-            return send_file(resultado_path, as_attachment=True, download_name=nombre_descarga)
-        return "Archivo JPG no encontrado", 404
-        
+        return _descargar_resultado(request.args.get('archivo'), '.jpg')
     except Exception as e:
         log_with_timestamp("ERROR", f"Error descargando archivo JPG: {str(e)}")
         return f"Error descargando archivo JPG: {str(e)}", 500
 
 @app.route('/descargar_pdf')
 def descargar_pdf():
-    """Descargar el archivo SOAT procesado en formato PDF más reciente"""
+    """Descargar el SOAT procesado en formato PDF"""
     try:
-        # Buscar archivos PDF que empiecen con identificador (nuevo formato)
-        archivos_pdf_identificador = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
-                                    if not f.startswith('resultado_') and f.endswith('.pdf')]
-        
-        # Si no hay archivos con identificador, buscar archivos con formato anterior
-        if not archivos_pdf_identificador:
-            archivos_pdf_identificador = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
-                                        if f.startswith('resultado_') and f.endswith('.pdf')]
-        
-        if not archivos_pdf_identificador:
-            return "No hay archivos PDF procesados disponibles para descargar", 404
-        
-        archivo_mas_reciente = max(archivos_pdf_identificador, 
-                                 key=lambda x: os.path.getctime(os.path.join(app.config['UPLOAD_FOLDER'], x)))
-        resultado_path = os.path.join(app.config['UPLOAD_FOLDER'], archivo_mas_reciente)
-        
-        if os.path.exists(resultado_path):
-            # Extraer el identificador del nombre del archivo
-            if archivo_mas_reciente.startswith('resultado_'):
-                # Formato anterior: resultado_protecta_170_archivo.pdf
-                nombre_descarga = archivo_mas_reciente
-            else:
-                # Nuevo formato: identificador.pdf
-                nombre_descarga = archivo_mas_reciente
-            
-            return send_file(resultado_path, as_attachment=True, download_name=nombre_descarga)
-        return "Archivo PDF no encontrado", 404
-        
+        return _descargar_resultado(request.args.get('archivo'), '.pdf')
     except Exception as e:
         log_with_timestamp("ERROR", f"Error descargando archivo PDF: {str(e)}")
         return f"Error descargando archivo PDF: {str(e)}", 500
-
-@app.route('/restaurar_archivos', methods=['POST'])
-def restaurar_archivos():
-    """Restaurar archivos PDF originales desde backups"""
-    try:
-        resultado = processor.restaurar_archivos_backup()
-        
-        if resultado['success']:
-            return jsonify(resultado)
-        else:
-            return jsonify(resultado), 400
-            
-    except Exception as e:
-        log_with_timestamp("ERROR", f"Error restaurando archivos: {str(e)}")
-        return jsonify({'error': f'Error restaurando archivos: {str(e)}'}), 500
 
 def obtener_ip_local():
     """Obtiene la IP local de la máquina"""
@@ -443,27 +391,33 @@ def obtener_ip_local():
 def mostrar_informacion_acceso():
     """Muestra las formas de acceso al servidor"""
     ip_local = obtener_ip_local()
-    
+    puerto = int(os.environ.get("PORT", 5000))
+
     print("\n" + "="*60)
     print("EDITOR SOAT - SERVIDOR FLASK INICIADO")
     print("="*60)
     print(f"[LOCAL] Acceso Local:")
-    print(f"   -> http://localhost:5000")
-    print(f"   -> http://127.0.0.1:5000")
+    print(f"   -> http://localhost:{puerto}")
+    print(f"   -> http://127.0.0.1:{puerto}")
     print(f"")
     print(f"[RED] Acceso Red Local (misma red):")
-    print(f"   -> http://{ip_local}:5000")
+    print(f"   -> http://{ip_local}:{puerto}")
     print("="*60)
     print("\n")
 
 if __name__ == '__main__':
+    # Host y puerto configurables por entorno (HOST / PORT).
+    host = os.environ.get("HOST", "0.0.0.0")
+    puerto = int(os.environ.get("PORT", 5000))
+
     # Mostrar información de acceso
     mostrar_informacion_acceso()
-    
-    # Iniciar servidor Flask para producción
+
+    # Servidor de desarrollo. En producción usar Gunicorn:
+    #   gunicorn -w 2 -b 0.0.0.0:5000 recepcion_imagen:app
     try:
-        print("Iniciando servidor Flask en puerto 5000...")
-        app.run(debug=False, host='0.0.0.0', port=5000)
+        print(f"Iniciando servidor Flask en {host}:{puerto}...")
+        app.run(debug=False, host=host, port=puerto)
     except KeyboardInterrupt:
         print("Servidor detenido por el usuario")
     except Exception as e:

@@ -338,6 +338,12 @@
                 <label for="sin_monto">Procesar SIN MONTO (usar imagen sin-monto.jpg)</label>
             </div>
 
+            <!-- Casilla para detección automática de identificador -->
+            <div class="checkbox-group">
+                <input type="checkbox" id="detectar_identificador_auto" name="detectar_identificador_auto" checked>
+                <label for="detectar_identificador_auto">Detectar identificador automáticamente</label>
+            </div>
+
             <!-- Solo un botón de procesar -->
             <div class="button-group">
                 <button type="button" class="btn btn-primary" onclick="procesar()">
@@ -360,6 +366,7 @@
             const form = document.getElementById('soatForm');
             const formData = new FormData(form);
             const sinMontoCheckbox = document.getElementById('sin_monto');
+            const detectarIdentificadorAutoCheckbox = document.getElementById('detectar_identificador_auto');
             
             // Determinar qué endpoint usar basado en el checkbox
             let endpoint;
@@ -370,6 +377,9 @@
                 formData.delete('sin_monto');
                 endpoint = '/procesar_soat';
             }
+
+            // Determinar si se debe detectar identificador automáticamente
+            formData.set('detectar_identificador_auto', detectarIdentificadorAutoCheckbox.checked ? 'true' : 'false');
             
             procesarSOAT(formData, endpoint);
         }
@@ -433,17 +443,19 @@
                     <div class="download-buttons">
                 `;
                 
+                const archivo = encodeURIComponent(data.archivo_resultado || '');
+
                 if (data.archivo_resultado) {
                     html += `
-                        <a href="/descargar_jpg" class="download-btn" download>
+                        <a href="/descargar_jpg?archivo=${archivo}" class="download-btn" download>
                             📥 Descargar JPG
                         </a>
                     `;
                 }
-                
+
                 if (data.pdf_disponible) {
                     html += `
-                        <a href="/descargar_pdf" class="download-btn" download>
+                        <a href="/descargar_pdf?archivo=${archivo}" class="download-btn" download>
                             📄 Descargar PDF
                         </a>
                     `;

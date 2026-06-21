@@ -1,3 +1,16 @@
+# Entorno virtual
+venv/
+
+# Cache de Python
 __pycache__/
 *.py[cod]
 
+# Archivos generados / temporales
+uploads/
+*.backup
+
+# Poppler portátil (solo desarrollo local en Windows)
+poppler/
+
+# Repositorio anidado ajeno al proyecto
+Proyecto-1/

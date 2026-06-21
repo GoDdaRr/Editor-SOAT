@@ -2,31 +2,25 @@ import cv2
 from pdf2image import convert_from_path
 import numpy as np
 import os
-import glob
-from typing import Tuple, Optional, List
-import shutil
+from typing import Optional, List
 from PIL import Image
-import platform
 import datetime
+import pytesseract
+import re
 
 class SOATProcessor:
     def __init__(self):
-        # Rutas de archivos de referencia
-        self.archivo_protecta = "Imagen-prueba-Protecta.pdf"
-        self.archivo_positiva = "Imagen-prueba-Positiva.pdf"
-        
-        # Configuración de poppler
-        sistema = platform.system().lower()
-        
-        if sistema == "windows":
-            self.poppler_path = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
-            if not os.path.exists(self.poppler_path):
-                self.poppler_path = None
-        else:
-            self.poppler_path = "/usr/bin"
-            if not os.path.exists(os.path.join(self.poppler_path, "pdftoppm")):
-                self.poppler_path = None
-        
+        # Poppler (binario para convertir PDF -> imagen).
+        # Se puede forzar la ruta con la variable de entorno POPPLER_PATH.
+        # Si no se define, se usa el binario disponible en el PATH del sistema
+        # (caso normal en Linux con poppler-utils instalado).
+        self.poppler_path = os.environ.get("POPPLER_PATH") or None
+        if not self.poppler_path:
+            # Fallback para desarrollo en Windows con Poppler portátil local.
+            local_win = os.path.abspath("poppler/poppler-24.02.0/Library/bin")
+            if os.path.exists(local_win):
+                self.poppler_path = local_win
+
         # Extensiones de imagen soportadas
         self.extensiones_imagen = ['.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif']
     
@@ -148,9 +142,10 @@ class SOATProcessor:
             self.log_with_timestamp("ERROR", f"Error convirtiendo imagen a PDF: {e}")
             return False
 
-    def procesar_soat_con_digitos(self, 
+    def procesar_soat_con_digitos(self,
                                 tipo_soat: str,
                                 numero: str,
+                                pdf_path: str,
                                 archivo_salida: str = "resultado.jpg",
                                 aplicar_mejoras: bool = True,
                                 factor_brillo: float = 1.1,
@@ -158,7 +153,8 @@ class SOATProcessor:
                                 redimensionar_final: bool = False,
                                 ancho_final: int = 1694,
                                 alto_final: int = 3300,
-                                generar_pdf: bool = True) -> dict:
+                                generar_pdf: bool = True,
+                                detectar_identificador_auto: bool = False) -> dict:
         """Procesa SOAT descomponiendo el número en dígitos individuales"""
         try:
             self.log_with_timestamp("STEP", f"Iniciando procesamiento SOAT {tipo_soat.upper()} con monto: {numero}")
@@ -193,7 +189,7 @@ class SOATProcessor:
             
             # Convertir PDF a imagen
             self.log_with_timestamp("STEP", f"Convirtiendo PDF {tipo_soat} a imagen (DPI: {dpi_conversion})")
-            fondo = self.pdf_to_image_mejorada(tipo_soat, dpi_conversion, aplicar_mejoras, factor_brillo)
+            fondo = self.pdf_to_image_mejorada(pdf_path, dpi_conversion, aplicar_mejoras, factor_brillo)
             if fondo is None:
                 self.log_with_timestamp("ERROR", f"Error convirtiendo PDF de {tipo_soat}")
                 return {'success': False, 'error': f'No se pudo procesar el PDF de {tipo_soat}'}
@@ -277,6 +273,21 @@ class SOATProcessor:
             resultado = self.saturar_imagen_completa(resultado, factor_saturacion_final)
             self.log_with_timestamp("OK", "Saturacion general aplicada")
             
+            # Detectar identificador automáticamente si se solicita
+            identificador_detectado = ""
+            identificador_usado = "manual"
+
+            if detectar_identificador_auto:
+                self.log_with_timestamp("STEP", "Iniciando detección automática de identificador...")
+                identificador_detectado = self.detectar_identificador_automatico(resultado, tipo_soat)
+                
+                if identificador_detectado:
+                    # Usar el identificador detectado para el nombre del archivo.
+                    # El PDF se deriva de archivo_salida al generarse más abajo.
+                    identificador_limpio = "".join(c for c in identificador_detectado if c.isalnum() or c in "._-")
+                    archivo_salida = f"{identificador_limpio}.jpg"
+                    identificador_usado = "automatico"
+            
             # Guardar la imagen final
             self.log_with_timestamp("STEP", f"Guardando imagen final: {archivo_salida}")
             cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
@@ -314,62 +325,29 @@ class SOATProcessor:
                 'redimensionado': redimensionar_final,
                 'archivo_salida': archivo_salida,
                 'archivo_pdf': archivo_pdf,
-                'imagen_resultado': resultado
+                'imagen_resultado': resultado,
+                'identificador_detectado': identificador_detectado,
+                'identificador_usado': identificador_usado
             }
             
         except Exception as e:
             self.log_with_timestamp("ERROR", f"Error interno procesando dígitos: {str(e)}")
             return {'success': False, 'error': f'Error interno procesando dígitos: {str(e)}'}
     
-    def actualizar_archivo_pdf(self, tipo_soat: str, nuevo_archivo_path: str) -> bool:
-        """Actualiza el archivo PDF de referencia"""
-        try:
-            if tipo_soat == 'protecta':
-                if os.path.exists(self.archivo_protecta):
-                    backup_path = f"{self.archivo_protecta}.backup"
-                    shutil.copy2(self.archivo_protecta, backup_path)
-                shutil.copy2(nuevo_archivo_path, self.archivo_protecta)
-                
-            elif tipo_soat == 'positiva':
-                if os.path.exists(self.archivo_positiva):
-                    backup_path = f"{self.archivo_positiva}.backup"
-                    shutil.copy2(self.archivo_positiva, backup_path)
-                shutil.copy2(nuevo_archivo_path, self.archivo_positiva)
-            else:
-                return False
-            
-            return True
-        except Exception as e:
-            self.log_with_timestamp("ERROR", f"Error actualizando archivo {tipo_soat}: {e}")
-            return False
-    
-    def pdf_to_image_mejorada(self, tipo_soat: str, dpi: int = 300, aplicar_mejoras: bool = True, 
+    def pdf_to_image_mejorada(self, pdf_path: str, dpi: int = 300, aplicar_mejoras: bool = True,
                              factor_brillo: float = 1.2) -> Optional[np.ndarray]:
-        """Convierte PDF a imagen con mejoras configurables"""
+        """Convierte el PDF indicado a imagen con mejoras configurables"""
         try:
-            self.log_with_timestamp("STEP", f"Convirtiendo PDF {tipo_soat} a imagen...")
-            
-            if tipo_soat == 'protecta':
-                archivo_pdf = self.archivo_protecta
-            elif tipo_soat == 'positiva':
-                archivo_pdf = self.archivo_positiva
-            else:
-                raise ValueError("tipo_soat debe ser 'protecta' o 'positiva'")
-            
-            self.log_with_timestamp("INFO", f"Archivo PDF: {archivo_pdf}")
-            
-            if not os.path.exists(archivo_pdf):
-                raise FileNotFoundError(f"No se encuentra el archivo: {archivo_pdf}")
-            
-            if self.poppler_path is None:
-                self.log_with_timestamp("ERROR", "Poppler no configurado correctamente")
-                return None
-            
-            self.log_with_timestamp("INFO", f"Usando Poppler en: {self.poppler_path}")
-            
-            # Convertir PDF a imagen
+            self.log_with_timestamp("INFO", f"Archivo PDF: {pdf_path}")
+
+            if not os.path.exists(pdf_path):
+                raise FileNotFoundError(f"No se encuentra el archivo: {pdf_path}")
+
+            self.log_with_timestamp("INFO", f"Poppler: {self.poppler_path or 'PATH del sistema'}")
+
+            # Convertir PDF a imagen (poppler_path=None -> se busca en el PATH)
             self.log_with_timestamp("STEP", f"Ejecutando conversion PDF->imagen (DPI: {dpi})")
-            pages = convert_from_path(archivo_pdf, dpi=dpi, poppler_path=self.poppler_path)
+            pages = convert_from_path(pdf_path, dpi=dpi, poppler_path=self.poppler_path)
             page = pages[0]
             self.log_with_timestamp("OK", f"PDF convertido, dimensiones: {page.size}")
             
@@ -497,8 +475,9 @@ class SOATProcessor:
             self.log_with_timestamp("ERROR", f"Error aplicando saturación general: {e}")
             return imagen
 
-    def procesar_soat_sin_monto(self, 
+    def procesar_soat_sin_monto(self,
                                tipo_soat: str,
+                               pdf_path: str,
                                archivo_salida: str = "resultado_sin_monto.jpg",
                                aplicar_mejoras: bool = True,
                                factor_brillo: float = 1.2,
@@ -506,7 +485,8 @@ class SOATProcessor:
                                redimensionar_final: bool = False,
                                ancho_final: int = 1694,
                                alto_final: int = 3300,
-                               generar_pdf: bool = True) -> dict:
+                               generar_pdf: bool = True,
+                               detectar_identificador_auto: bool = False) -> dict:
         """Procesa SOAT sin monto - solo pega la imagen sin-monto.jpg"""
         try:
             # Buscar imagen sin monto
@@ -515,9 +495,23 @@ class SOATProcessor:
                 return {'success': False, 'error': 'No se encontró la imagen sin-monto.jpg'}
             
             # Convertir PDF a imagen
-            fondo = self.pdf_to_image_mejorada(tipo_soat, dpi_conversion, aplicar_mejoras, factor_brillo)
+            fondo = self.pdf_to_image_mejorada(pdf_path, dpi_conversion, aplicar_mejoras, factor_brillo)
             if fondo is None:
                 return {'success': False, 'error': f'No se pudo procesar el PDF de {tipo_soat}'}
+            
+            # Detectar identificador automáticamente si está habilitado
+            identificador_detectado = ""
+            if detectar_identificador_auto:
+                self.log_with_timestamp("STEP", "Detectando identificador automáticamente...")
+                identificador_detectado = self.detectar_identificador_automatico(fondo, tipo_soat)
+                if identificador_detectado and identificador_detectado != "NO_DETECTADO":
+                    self.log_with_timestamp("OK", f"Identificador detectado: {identificador_detectado}")
+                    # Actualizar el nombre del archivo con el identificador detectado
+                    if identificador_detectado:
+                        identificador_limpio = "".join(c for c in identificador_detectado if c.isalnum() or c in "._-")
+                        archivo_salida = archivo_salida.replace("resultado_sin_monto", f"resultado_{tipo_soat}_{identificador_limpio}")
+                else:
+                    self.log_with_timestamp("WARNING", "No se pudo detectar identificador automáticamente")
             
             # Redimensionar fondo si está habilitado
             if redimensionar_final:
@@ -570,351 +564,184 @@ class SOATProcessor:
                 'dimensiones_finales': f'{resultado.shape[1]}x{resultado.shape[0]}',
                 'archivo_salida': archivo_salida,
                 'archivo_pdf': archivo_pdf,
-                'imagen_resultado': resultado
+                'imagen_resultado': resultado,
+                'identificador_detectado': identificador_detectado,  # AGREGAR ESTA LÍNEA
+                'identificador_usado': 'automatico' if identificador_detectado else 'manual'  # AGREGAR ESTA LÍNEA
             }
             
         except Exception as e:
             self.log_with_timestamp("ERROR", f"Error procesando SOAT sin monto: {str(e)}")
             return {'success': False, 'error': f'Error procesando SOAT sin monto: {str(e)}'}
 
-    def restaurar_archivos_backup(self) -> dict:
-        """Restaura los archivos PDF desde los backups"""
+    def detectar_identificador_automatico(self, imagen: np.ndarray, tipo_soat: str) -> str:
+        """
+        Detecta automáticamente el identificador del vehículo en la imagen procesada
+        
+        Args:
+            imagen: Imagen procesada en formato OpenCV (numpy array)
+            tipo_soat: 'protecta' o 'positiva' para determinar región de búsqueda
+            
+        Returns:
+            str: Identificador detectado o cadena vacía si no se encuentra
+        """
         try:
-            restaurados = []
+            self.log_with_timestamp("STEP", f"Iniciando detección automática de identificador para {tipo_soat}")
             
-            # Restaurar protecta
-            backup_protecta = f"{self.archivo_protecta}.backup"
-            if os.path.exists(backup_protecta):
-                shutil.copy2(backup_protecta, self.archivo_protecta)
-                restaurados.append('protecta')
+            # Definir regiones de búsqueda según el tipo de SOAT
+            regiones_busqueda = {
+                'protecta': [
+                    {'x1': 36, 'y1': 1595, 'x2': 258, 'y2': 1670, 'descripcion': 'Región principal Protecta'},
+                    {'x1': 22, 'y1': 1585, 'x2': 276, 'y2': 1684, 'descripcion': 'Región extendida Protecta'}
+                ],
+                'positiva': [
+                    {'x1': 83, 'y1': 2005, 'x2': 316, 'y2': 2071, 'descripcion': 'Región principal Positiva'},
+                    {'x1': 59, 'y1': 1992, 'x2': 341, 'y2': 2087, 'descripcion': 'Región extendida Positiva'}
+                ]
+            }
             
-            # Restaurar positiva
-            backup_positiva = f"{self.archivo_positiva}.backup"
-            if os.path.exists(backup_positiva):
-                shutil.copy2(backup_positiva, self.archivo_positiva)
-                restaurados.append('positiva')
+            if tipo_soat not in regiones_busqueda:
+                self.log_with_timestamp("ERROR", f"Tipo de SOAT no válido para detección: {tipo_soat}")
+                return ""
             
-            if restaurados:
-                return {
-                    'success': True,
-                    'mensaje': f'Archivos restaurados: {", ".join(restaurados)}'
-                }
+            # Probar múltiples métodos de OCR
+            identificadores_detectados = []
+            
+            for region in regiones_busqueda[tipo_soat]:
+                self.log_with_timestamp("INFO", f"Analizando {region['descripcion']}")
+                
+                # Extraer región de la imagen
+                x1, y1, x2, y2 = region['x1'], region['y1'], region['x2'], region['y2']
+                region_imagen = imagen[y1:y2, x1:x2].copy()
+                
+                if region_imagen.size == 0:
+                    continue
+                
+                # OCR con Tesseract
+                try:
+                    texto_tesseract = self._extraer_texto_tesseract(region_imagen)
+                    if texto_tesseract:
+                        identificadores_detectados.extend(self._procesar_texto_ocr(texto_tesseract, "Tesseract"))
+                except Exception as e:
+                    self.log_with_timestamp("WARNING", f"Error con Tesseract: {e}")
+
+            # Seleccionar el mejor identificador detectado
+            mejor_identificador = self._seleccionar_mejor_identificador(identificadores_detectados)
+            
+            if mejor_identificador:
+                self.log_with_timestamp("OK", f"Identificador detectado automáticamente: {mejor_identificador}")
+                return mejor_identificador
             else:
-                return {
-                    'success': False,
-                    'error': 'No hay archivos de backup disponibles'
-                }
+                self.log_with_timestamp("WARNING", "No se pudo detectar identificador automáticamente")
+                return ""
                 
         except Exception as e:
-            return {
-                'success': False,
-                'error': f'Error restaurando archivos: {str(e)}'
-            }
+            self.log_with_timestamp("ERROR", f"Error en detección automática: {e}")
+            return ""
 
-
-    def aumentar_brillo(self, imagen: np.ndarray, factor_brillo: float = 1.2) -> np.ndarray:
-        """
-        Aumenta el brillo de una imagen
-        
-        Args:
-            imagen: Imagen en formato OpenCV (numpy array)
-            factor_brillo: Factor de aumento del brillo (1.0 = sin cambio, >1.0 = mas brillo)
-            
-        Returns:
-            np.ndarray: Imagen con brillo aumentado
-        """
+    def _extraer_texto_tesseract(self, region_imagen: np.ndarray) -> str:
+        """Extrae texto usando Tesseract OCR"""
         try:
-            # Convertir a float para evitar overflow
-            imagen_float = imagen.astype(np.float32)
+            # Preprocesar imagen para mejor OCR
+            imagen_procesada = self._preprocesar_imagen_ocr(region_imagen)
             
-            # Aplicar factor de brillo
-            imagen_brillante = imagen_float * factor_brillo
+            # Configurar Tesseract
+            config = '--oem 3 --psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
             
-            # Asegurar que los valores esten en el rango [0, 255]
-            imagen_brillante = np.clip(imagen_brillante, 0, 255)
-            
-            # Convertir de vuelta a uint8
-            imagen_resultado = imagen_brillante.astype(np.uint8)
-            
-            print(f"[OK] Brillo aumentado con factor: {factor_brillo}")
-            return imagen_resultado
+            # Extraer texto
+            texto = pytesseract.image_to_string(imagen_procesada, config=config)
+            return texto.strip()
             
         except Exception as e:
-            print(f"[ERROR] Error aumentando brillo: {e}")
-            return imagen  # Retornar imagen original si hay error
+            self.log_with_timestamp("ERROR", f"Error Tesseract: {e}")
+            return ""
 
-    def redimensionar_resultado_final(self, imagen: np.ndarray, ancho_objetivo: int = 1694, alto_objetivo: int = 3300) -> np.ndarray:
-        """
-        Redimensiona la imagen final a un tamaño específico
-        
-        Args:
-            imagen: Imagen en formato OpenCV (numpy array)
-            ancho_objetivo: Ancho objetivo en pixeles (por defecto 1694)
-            alto_objetivo: Alto objetivo en pixeles (por defecto 3300)
-            
-        Returns:
-            np.ndarray: Imagen redimensionada al tamaño objetivo
-        """
+    def _preprocesar_imagen_ocr(self, imagen: np.ndarray) -> np.ndarray:
+        """Preprocesa imagen para mejorar la detección OCR"""
         try:
-            alto_actual, ancho_actual = imagen.shape[:2]
+            # Convertir a escala de grises
+            if len(imagen.shape) == 3:
+                gris = cv2.cvtColor(imagen, cv2.COLOR_BGR2GRAY)
+            else:
+                gris = imagen.copy()
             
-            print(f"[INFO] Redimensionando imagen de {ancho_actual}x{alto_actual} a {ancho_objetivo}x{alto_objetivo}")
+            # Aplicar filtro gaussiano para reducir ruido
+            suavizado = cv2.GaussianBlur(gris, (3, 3), 0)
             
-            # Redimensionar usando interpolación de alta calidad
-            imagen_redimensionada = cv2.resize(imagen, (ancho_objetivo, alto_objetivo), interpolation=cv2.INTER_CUBIC)
+            # Aplicar umbralización adaptativa
+            umbral = cv2.adaptiveThreshold(suavizado, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                         cv2.THRESH_BINARY, 11, 2)
             
-            print(f"[OK] Imagen redimensionada correctamente")
-            return imagen_redimensionada
+            # Dilatación para conectar caracteres fragmentados
+            kernel = np.ones((2, 2), np.uint8)
+            dilatado = cv2.dilate(umbral, kernel, iterations=1)
+            
+            return dilatado
             
         except Exception as e:
-            print(f"[ERROR] Error redimensionando imagen: {e}")
-            return imagen  # Retornar imagen original si hay error
-
-    def saturar_region_rectangulo(self, imagen: np.ndarray, x1: int, y1: int, x2: int, y2: int, 
-                                 factor_saturacion: float = 1.9) -> np.ndarray:
-        """
-        Satura una region rectangular definida por dos puntos especificos (x1,y1) y (x2,y2)
-        Se aplica despues del redimensionamiento del fondo
-        
-        Args:
-            imagen: Imagen en formato OpenCV (numpy array)
-            x1: Coordenada X del punto inicial
-            y1: Coordenada Y del punto inicial  
-            x2: Coordenada X del punto final
-            y2: Coordenada Y del punto final
-            factor_saturacion: Factor de saturacion (1.0 = sin cambio, >1.0 = mas saturado)
-            
-        Returns:
-            np.ndarray: Imagen con region saturada
-        """
-        try:
-            resultado = imagen.copy()
-            h_img, w_img = imagen.shape[:2]
-            
-            # Asegurar que x1,y1 sea el punto superior izquierdo
-            x_inicio = min(x1, x2)
-            y_inicio = min(y1, y2)
-            x_fin = max(x1, x2)
-            y_fin = max(y1, y2)
-            
-            # Validar que la region este dentro de los limites
-            if x_inicio < 0 or y_inicio < 0 or x_fin >= w_img or y_fin >= h_img:
-                print(f"[ERROR] Region fuera de limites. Imagen: {w_img}x{h_img}, Region: ({x_inicio},{y_inicio}) a ({x_fin},{y_fin})")
-                return imagen
-            
-            # Extraer la region rectangular
-            region = imagen[y_inicio:y_fin+1, x_inicio:x_fin+1].copy()
-            
-            # Convertir a HSV para manipular saturacion
-            region_hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
-            
-            # Separar canales H, S, V
-            h, s, v = cv2.split(region_hsv)
-            
-            # Aumentar saturacion (canal S)
-            s_float = s.astype(np.float32)
-            s_saturada = s_float * factor_saturacion
-            
-            # Asegurar que este en rango [0, 255]
-            s_saturada = np.clip(s_saturada, 0, 255).astype(np.uint8)
-            
-            # Recombinar canales
-            region_hsv_saturada = cv2.merge([h, s_saturada, v])
-            
-            # Convertir de vuelta a BGR
-            region_saturada = cv2.cvtColor(region_hsv_saturada, cv2.COLOR_HSV2BGR)
-            
-            # Colocar la region saturada de vuelta en la imagen
-            resultado[y_inicio:y_fin+1, x_inicio:x_fin+1] = region_saturada
-            
-            ancho = x_fin - x_inicio + 1
-            alto = y_fin - y_inicio + 1
-            
-            print(f"[OK] Region saturada desde ({x_inicio},{y_inicio}) hasta ({x_fin},{y_fin}) - Tamano: {ancho}x{alto} pixeles")
-            return resultado
-            
-        except Exception as e:
-            print(f"[ERROR] Error saturando region: {e}")
+            self.log_with_timestamp("ERROR", f"Error preprocesando imagen OCR: {e}")
             return imagen
 
-    def procesar_soat_sin_monto(self, tipo_soat: str, archivo_salida: str, 
-                                aplicar_mejoras: bool = True, factor_brillo: float = 1.2,
-                                dpi_conversion: int = 300, redimensionar_final: bool = True,
-                                ancho_final: int = 1694, alto_final: int = 3300,
-                                generar_pdf: bool = True) -> dict:
-        """
-        Procesa el SOAT SIN monto - solo pega la imagen sin-monto.jpg en posición fija
+    def _procesar_texto_ocr(self, texto: str, metodo: str) -> list:
+        """Procesa texto extraído por OCR y extrae posibles identificadores"""
+        identificadores = []
         
-        Args:
-            tipo_soat: 'protecta' o 'positiva'
-            archivo_salida: Ruta donde guardar la imagen resultado
-            aplicar_mejoras: Aplicar mejoras de calidad
-            factor_brillo: Factor de brillo
-            dpi_conversion: DPI de conversión
-            redimensionar_final: Redimensionar imagen final
-            ancho_final: Ancho objetivo
-            alto_final: Alto objetivo
-            generar_pdf: Si generar también versión PDF
-            
-        Returns:
-            dict: Resultado del procesamiento
-        """
         try:
-            self.log_with_timestamp("INFO", f"Iniciando procesamiento de SOAT sin monto para {tipo_soat}")
+            # Limpiar texto
+            texto_limpio = re.sub(r'[^A-Za-z0-9\s]', '', texto.upper())
             
-            # 1. Validar tipo de SOAT
-            if tipo_soat not in ['protecta', 'positiva']:
-                self.log_with_timestamp("ERROR", f"Tipo de SOAT inválido: {tipo_soat}")
-                return {'success': False, 'error': 'Tipo de SOAT inválido. Use "protecta" o "positiva".'}
+            # Patrones comunes de identificadores de vehículos
+            patrones = [
+                r'\b[A-Z]{3}\d{3}\b',      # ABC123
+                r'\b[A-Z]{2}\d{4}\b',      # AB1234
+                r'\b[A-Z]\d{5}\b',         # A12345
+                r'\b\d{6}\b',              # 123456
+                r'\b[A-Z]{3}\d{2}[A-Z]\b', # ABC12D
+                r'\b[A-Z]\d{3}[A-Z]{2}\b'  # A123BC
+            ]
             
-            # 2. Buscar imagen sin-monto.jpg
-            imagen_sin_monto_path = "assets/sin-monto.jpg"
-            if not os.path.exists(imagen_sin_monto_path):
-                self.log_with_timestamp("ERROR", f"No se encontró la imagen: {imagen_sin_monto_path}")
-                return {'success': False, 'error': f'No se encontró la imagen sin-monto.jpg en {imagen_sin_monto_path}'}
+            for patron in patrones:
+                matches = re.findall(patron, texto_limpio)
+                for match in matches:
+                    if len(match) >= 4:  # Mínimo 4 caracteres
+                        identificadores.append({
+                            'texto': match,
+                            'metodo': metodo,
+                            'longitud': len(match),
+                            'confianza': 0.8 if len(match) >= 6 else 0.6
+                        })
             
-            # 3. Cargar imagen sin-monto.jpg
-            self.log_with_timestamp("INFO", f"Cargando imagen sin-monto: {imagen_sin_monto_path}")
-            imagen_sin_monto = cv2.imread(imagen_sin_monto_path)
-            if imagen_sin_monto is None:
-                self.log_with_timestamp("ERROR", f"No se pudo cargar la imagen: {imagen_sin_monto_path}")
-                return {'success': False, 'error': f'No se pudo cargar la imagen sin-monto.jpg'}
-            
-            # 4. Convertir PDF a imagen CON MEJORAS (reutilizar función existente)
-            self.log_with_timestamp("INFO", f"Convirtiendo PDF a imagen para {tipo_soat}")
-            fondo = self.pdf_to_image_mejorada(tipo_soat, dpi_conversion, aplicar_mejoras, factor_brillo)
-            if fondo is None:
-                self.log_with_timestamp("ERROR", f"No se pudo procesar el PDF de {tipo_soat}")
-                return {'success': False, 'error': f'No se pudo procesar el PDF de {tipo_soat}'}
-            
-            self.log_with_timestamp("INFO", f"PDF convertido exitosamente, dimensiones: {fondo.shape}")
-            
-            # 5. Redimensionar fondo si está habilitado (reutilizar función existente)
-            dimensiones_originales = f'{fondo.shape[1]}x{fondo.shape[0]}'
-            
-            if redimensionar_final:
-                self.log_with_timestamp("INFO", f"Redimensionando fondo a {ancho_final}x{alto_final}")
-                fondo = self.redimensionar_resultado_final(fondo, ancho_final, alto_final)
-                
-                # Aplicar saturación a región específica (reutilizar función existente)
-                if aplicar_mejoras:
-                    self.log_with_timestamp("INFO", "Aplicando saturación a región específica del fondo...")
-                    fondo = self.saturar_region_rectangulo(fondo, 35, 2525, 1661, 2780, 1.6)
-            
-            # 6. Configuración de posición fija para imagen sin-monto
-            posiciones_sin_monto = {
-                'protecta': {
-                    'x': 840,   # Cambiar a zona diferente - más a la izquierda
-                    'y': 1670   # Cambiar a zona diferente - más abajo
-                },
-                'positiva': {
-                    'x': 824,   # Cambiar a zona diferente - más a la izquierda
-                    'y': 2116   # Cambiar a zona diferente - más abajo
-                }
-            }
-
-            x_posicion = posiciones_sin_monto[tipo_soat]['x']
-            y_posicion = posiciones_sin_monto[tipo_soat]['y']
-            self.log_with_timestamp("INFO", f"Usando coordenadas específicas para SIN MONTO: ({x_posicion}, {y_posicion})")
-
-            # DEBUG: Información detallada antes del pegado
-            self.log_with_timestamp("DEBUG", f"=== DEBUG ANTES DEL PEGADO SIN MONTO ===")
-            self.log_with_timestamp("DEBUG", f"Función ejecutándose: procesar_soat_sin_monto")
-            self.log_with_timestamp("DEBUG", f"Tipo SOAT: {tipo_soat}")
-            self.log_with_timestamp("DEBUG", f"Coordenadas calculadas: ({x_posicion}, {y_posicion})")
-            
-            # 7. Verificar límites antes de pegar
-            h_imagen, w_imagen = imagen_sin_monto.shape[:2]
-            h_fondo, w_fondo = fondo.shape[:2]
-            
-            self.log_with_timestamp("DEBUG", f"Dimensiones imagen sin-monto: {w_imagen}x{h_imagen}")
-            self.log_with_timestamp("DEBUG", f"Dimensiones fondo: {w_fondo}x{h_fondo}")
-            self.log_with_timestamp("DEBUG", f"Área de pegado: desde ({x_posicion},{y_posicion}) hasta ({x_posicion+w_imagen},{y_posicion+h_imagen})")
-            self.log_with_timestamp("DEBUG", f"=============================================")
-            
-            self.log_with_timestamp("INFO", f"Pegando imagen sin-monto de {w_imagen}x{h_imagen} en posición ({x_posicion},{y_posicion})")
-            
-            if x_posicion + w_imagen > w_fondo or y_posicion + h_imagen > h_fondo:
-                self.log_with_timestamp("ERROR", f"Imagen sin-monto se sale de los límites. Fondo: {w_fondo}x{h_fondo}")
-                return {'success': False, 'error': 'La imagen sin-monto se sale de los límites del fondo'}
-            
-            # 8. Crear copia del fondo y pegar imagen sin-monto
-            resultado = fondo.copy()
-            resultado[y_posicion:y_posicion+h_imagen, x_posicion:x_posicion+w_imagen] = imagen_sin_monto
-            
-            # Aplicar saturación general a toda la imagen como paso final
-            factor_saturacion_final = 1.8  # CONFIGURABLE INTERNAMENTE
-            resultado = self.saturar_imagen_completa(resultado, factor_saturacion_final)
-            
-            # 9. Guardar imagen intermedia del resultado
-            self.log_with_timestamp("INFO", f"Guardando imagen final: {archivo_salida}")
-            cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
-            
-            # 10. Guardar la imagen final
-            self.log_with_timestamp("INFO", f"Guardando imagen final: {archivo_salida}")
-            cv2.imwrite(archivo_salida, resultado, [cv2.IMWRITE_JPEG_QUALITY, 95])
-            
-            # 11. Generar PDF si está habilitado (reutilizar función existente)
-            archivo_pdf = None
-            if generar_pdf:
-                pdf_path = archivo_salida.replace('.jpg', '.pdf')
-                self.log_with_timestamp("INFO", f"Generando PDF: {pdf_path}")
-                if self.convertir_imagen_a_pdf(archivo_salida, pdf_path):
-                    archivo_pdf = pdf_path
-                    self.log_with_timestamp("OK", f"PDF generado: {pdf_path}")
-                else:
-                    self.log_with_timestamp("WARNING", "No se pudo generar el PDF")
-            
-            self.log_with_timestamp("OK", f"Procesamiento sin monto completado exitosamente para {tipo_soat}")
-            
-            return {
-                'success': True,
-                'mensaje': f'SOAT {tipo_soat.upper()} procesado correctamente SIN MONTO',
-                'tipo_soat': tipo_soat,
-                'numero': 'SIN-MONTO',
-                'imagen_pegada': 'sin-monto.jpg',
-                'posicion_pegado': f'({x_posicion},{y_posicion})',
-                'mejoras_aplicadas': aplicar_mejoras,
-                'factor_brillo_usado': factor_brillo,
-                'dpi_usado': dpi_conversion,
-                'imagen_origen': 'sin-monto.jpg (posición fija)',
-                'dimensiones_originales': dimensiones_originales,
-                'dimensiones_finales': f'{resultado.shape[1]}x{resultado.shape[0]}',
-                'redimensionado': redimensionar_final,
-                'archivo_salida': archivo_salida,
-                'archivo_pdf': archivo_pdf,
-                'imagen_resultado': resultado  # Esta es la imagen que se usará para todo
-            }
+            self.log_with_timestamp("INFO", f"{metodo} detectó {len(identificadores)} posibles identificadores")
+            return identificadores
             
         except Exception as e:
-            self.log_with_timestamp("ERROR", f"Error interno procesando sin monto: {str(e)}")
-            import traceback
-            self.log_with_timestamp("ERROR", f"Traceback: {traceback.format_exc()}")
-            return {'success': False, 'error': f'Error interno procesando sin monto: {str(e)}'}
+            self.log_with_timestamp("ERROR", f"Error procesando texto OCR: {e}")
+            return []
 
-def main():
-    """Funcion principal para ejecutar directamente el script"""
-    processor = SOATProcessor()
-    
-    # Mostrar imagenes disponibles por tipo
-    processor.mostrar_imagenes_disponibles_por_tipo()
-    
-    # Ejemplo de uso comentado
-    """
-    resultado = processor.procesar_soat_con_digitos(
-        tipo_soat='protecta',
-        numero='170'
-    )
-    
-    if resultado['success']:
-        print(f"[OK] {resultado['mensaje']}")
-        print(f"[INFO] Imagen usada: {resultado['imagen_origen']}")
-    else:
-        print(f"[ERROR] Error: {resultado['error']}")
-    """
+    def _seleccionar_mejor_identificador(self, identificadores: list) -> str:
+        """Selecciona el mejor identificador de la lista de candidatos"""
+        try:
+            if not identificadores:
+                return ""
+            
+            # Ordenar por confianza y longitud
+            identificadores_ordenados = sorted(identificadores, 
+                                             key=lambda x: (x['confianza'], x['longitud']), 
+                                             reverse=True)
+            
+            # Seleccionar el mejor
+            mejor = identificadores_ordenados[0]
+            
+            self.log_with_timestamp("INFO", f"Mejor candidato: {mejor['texto']} (confianza: {mejor['confianza']}, método: {mejor['metodo']})")
+            
+            return mejor['texto']
+            
+        except Exception as e:
+            self.log_with_timestamp("ERROR", f"Error seleccionando mejor identificador: {e}")
+            return ""
+
 
 if __name__ == "__main__":
-    # Solo mostrar información básica en producción
-    processor = SOATProcessor()
+    # La lógica se ejecuta a través del servidor Flask (recepcion_imagen.py).
+    SOATProcessor()
     print("Editor SOAT - Sistema de procesamiento de documentos")
     print("Sistema listo para procesar documentos")
