@@ -8,7 +8,7 @@ gunicorn==21.2.0
 # Procesamiento de imágenes
 opencv-python-headless==4.8.1.78
 Pillow==10.0.1
-numpy==1.24.3
+numpy==1.26.4
 
 # Conversión de PDFs (requiere Poppler instalado en el sistema)
 pdf2image==1.16.3
