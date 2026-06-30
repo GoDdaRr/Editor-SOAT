@@ -91,10 +91,11 @@
         .tipo-options {
             display: flex;
             gap: 20px;
+            flex-wrap: wrap;
         }
 
         .tipo-option {
-            flex: 1;
+            flex: 1 1 140px;
             position: relative;
         }
 
@@ -147,6 +148,15 @@
             border-color: #ff9800;
             transform: translateY(-3px);
             box-shadow: 0 10px 30px rgba(255, 179, 102, 0.4);
+        }
+
+        /* Estilos específicos para Positiva (Nueva) (verde azulado) */
+        .tipo-option input[type="radio"]:checked + label[for="positiva_nueva"] {
+            background: linear-gradient(135deg, #009688 0%, #4db6ac 100%);
+            color: white;
+            border-color: #00897b;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0, 150, 136, 0.4);
         }
 
         .tipo-option input[type="radio"]:checked + label::after {
@@ -312,6 +322,13 @@
                         <label for="positiva">
                             <div class="tipo-icon">⚡</div>
                             Positiva
+                        </label>
+                    </div>
+                    <div class="tipo-option">
+                        <input type="radio" id="positiva_nueva" name="tipo_soat" value="positiva_nueva" required>
+                        <label for="positiva_nueva">
+                            <div class="tipo-icon">✨</div>
+                            Positiva (Nueva)
                         </label>
                     </div>
                 </div>

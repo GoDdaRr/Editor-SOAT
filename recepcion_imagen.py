@@ -79,9 +79,9 @@ def procesar_soat():
             log_with_timestamp("ERROR", "No se ingreso monto")
             return jsonify({'error': 'Debe ingresar un monto'}), 400
             
-        if not tipo_soat or tipo_soat not in ['protecta', 'positiva']:
+        if not tipo_soat or tipo_soat not in ['protecta', 'positiva', 'positiva_nueva']:
             log_with_timestamp("ERROR", f"Tipo de SOAT invalido: {tipo_soat}")
-            return jsonify({'error': 'Debe seleccionar el tipo de SOAT (Protecta o Positiva)'}), 400
+            return jsonify({'error': 'Debe seleccionar el tipo de SOAT (Protecta, Positiva o Positiva Nueva)'}), 400
         
         # Validar que el monto sea un número válido
         if not processor.validar_numero(monto):
@@ -243,9 +243,9 @@ def procesar_soat_sin_monto():
             log_with_timestamp("ERROR", "No se subio archivo PDF")
             return jsonify({'error': 'No se subió ningún archivo PDF'}), 400
             
-        if not tipo_soat or tipo_soat not in ['protecta', 'positiva']:
+        if not tipo_soat or tipo_soat not in ['protecta', 'positiva', 'positiva_nueva']:
             log_with_timestamp("ERROR", f"Tipo de SOAT invalido: {tipo_soat}")
-            return jsonify({'error': 'Debe seleccionar el tipo de SOAT (Protecta o Positiva)'}), 400
+            return jsonify({'error': 'Debe seleccionar el tipo de SOAT (Protecta, Positiva o Positiva Nueva)'}), 400
         
         log_with_timestamp("OK", "Validaciones completadas exitosamente")
         

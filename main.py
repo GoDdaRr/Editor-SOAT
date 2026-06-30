@@ -43,7 +43,10 @@ class SOATProcessor:
     
     def buscar_imagen_por_numero(self, numero: str, tipo_soat: str = "protecta") -> Optional[str]:
         """Busca una imagen en el sistema que contenga el numero en su nombre"""
-        if tipo_soat == "positiva":
+        if tipo_soat == "positiva_nueva":
+            # Usa imágenes propias si existen; si no, reutiliza las de Positiva.
+            directorios_busqueda = ["assets/assets-positiva-nueva", "assets/assets-positiva", "assets", ".", "imagenes", "recursos"]
+        elif tipo_soat == "positiva":
             directorios_busqueda = ["assets/assets-positiva", "assets", ".", "imagenes", "recursos"]
         else:
             directorios_busqueda = ["assets/assets-protecta", "assets/antiguos", "assets", ".", "imagenes", "recursos"]
@@ -217,6 +220,14 @@ class SOATProcessor:
                     2: {'x': 995, 'y': 1771}
                 },
                 'positiva': {
+                    0: {'x': 918, 'y': 2194},
+                    1: {'x': 954, 'y': 2194},
+                    2: {'x': 991, 'y': 2194}
+                },
+                # Positiva (Nueva): el PDF cambió de layout, por lo que las
+                # coordenadas son distintas. Valores iniciales copiados de
+                # 'positiva'; AJUSTAR mirando dónde cae el monto en el PDF nuevo.
+                'positiva_nueva': {
                     0: {'x': 918, 'y': 2194},
                     1: {'x': 954, 'y': 2194},
                     2: {'x': 991, 'y': 2194}
@@ -528,7 +539,9 @@ class SOATProcessor:
             # Posiciones fijas para sin monto
             posiciones_sin_monto = {
                 'protecta': {'x': 938, 'y': 1772},
-                'positiva': {'x': 824, 'y': 2116}
+                'positiva': {'x': 824, 'y': 2116},
+                # Positiva (Nueva): AJUSTAR a la posición del nuevo PDF.
+                'positiva_nueva': {'x': 824, 'y': 2116}
             }
             
             x_posicion = posiciones_sin_monto[tipo_soat]['x']
@@ -596,6 +609,11 @@ class SOATProcessor:
                 'positiva': [
                     {'x1': 83, 'y1': 2005, 'x2': 316, 'y2': 2071, 'descripcion': 'Región principal Positiva'},
                     {'x1': 59, 'y1': 1992, 'x2': 341, 'y2': 2087, 'descripcion': 'Región extendida Positiva'}
+                ],
+                # Positiva (Nueva): AJUSTAR a la zona de la placa del nuevo PDF.
+                'positiva_nueva': [
+                    {'x1': 83, 'y1': 2005, 'x2': 316, 'y2': 2071, 'descripcion': 'Región principal Positiva Nueva'},
+                    {'x1': 59, 'y1': 1992, 'x2': 341, 'y2': 2087, 'descripcion': 'Región extendida Positiva Nueva'}
                 ]
             }
             
