@@ -224,12 +224,12 @@ class SOATProcessor:
                     1: {'x': 954, 'y': 2194},
                     2: {'x': 991, 'y': 2194}
                 },
-                # Positiva (Nueva): coordenadas medidas sobre el nuevo layout
-                # (imagen final 1694x3300). El monto "S/. __" cae en x~940, y~1860.
+                # Positiva (Nueva): dígitos reducidos (assets-positiva-nueva, ~26x45)
+                # para igualar la fuente del nuevo layout. Separación ~27 px.
                 'positiva_nueva': {
-                    0: {'x': 940, 'y': 1860},
-                    1: {'x': 976, 'y': 1860},
-                    2: {'x': 1012, 'y': 1860}
+                    0: {'x': 938, 'y': 1866},
+                    1: {'x': 965, 'y': 1866},
+                    2: {'x': 992, 'y': 1866}
                 }
             }
             
@@ -344,6 +344,32 @@ class SOATProcessor:
             self.log_with_timestamp("ERROR", f"Error interno procesando dígitos: {str(e)}")
             return {'success': False, 'error': f'Error interno procesando dígitos: {str(e)}'}
     
+    def _render_pdf_bgr(self, pdf_path: str, dpi: int) -> np.ndarray:
+        """Renderiza la primera página del PDF a un array BGR de OpenCV.
+
+        Usa Poppler (pdf2image) si está disponible. Si no lo está (p. ej. en
+        desarrollo local sin Poppler), cae a PyMuPDF, que no requiere binarios
+        del sistema. Ambos producen la misma geometría tras el redimensionado.
+        """
+        # 1. Poppler / pdf2image (opción por defecto en el servidor)
+        try:
+            pages = convert_from_path(pdf_path, dpi=dpi, poppler_path=self.poppler_path)
+            return cv2.cvtColor(np.array(pages[0]), cv2.COLOR_RGB2BGR)
+        except Exception as e:
+            self.log_with_timestamp("WARNING", f"Poppler no disponible ({e}); usando PyMuPDF")
+
+        # 2. PyMuPDF (fitz) como alternativa sin dependencias del sistema
+        import fitz
+        doc = fitz.open(pdf_path)
+        try:
+            page = doc[0]
+            pix = page.get_pixmap(matrix=fitz.Matrix(dpi / 72.0, dpi / 72.0))
+            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
+            modo = cv2.COLOR_RGBA2BGR if pix.n == 4 else cv2.COLOR_RGB2BGR
+            return cv2.cvtColor(img, modo)
+        finally:
+            doc.close()
+
     def pdf_to_image_mejorada(self, pdf_path: str, dpi: int = 300, aplicar_mejoras: bool = True,
                              factor_brillo: float = 1.2) -> Optional[np.ndarray]:
         """Convierte el PDF indicado a imagen con mejoras configurables"""
@@ -357,14 +383,8 @@ class SOATProcessor:
 
             # Convertir PDF a imagen (poppler_path=None -> se busca en el PATH)
             self.log_with_timestamp("STEP", f"Ejecutando conversion PDF->imagen (DPI: {dpi})")
-            pages = convert_from_path(pdf_path, dpi=dpi, poppler_path=self.poppler_path)
-            page = pages[0]
-            self.log_with_timestamp("OK", f"PDF convertido, dimensiones: {page.size}")
-            
-            # Convertir a formato OpenCV
-            self.log_with_timestamp("STEP", "Convirtiendo a formato OpenCV...")
-            imagen_cv = cv2.cvtColor(np.array(page), cv2.COLOR_RGB2BGR)
-            self.log_with_timestamp("OK", f"Conversion OpenCV completada, dimensiones: {imagen_cv.shape}")
+            imagen_cv = self._render_pdf_bgr(pdf_path, dpi)
+            self.log_with_timestamp("OK", f"Conversion completada, dimensiones: {imagen_cv.shape}")
             
             # Aplicar mejoras si está habilitado
             if aplicar_mejoras:
