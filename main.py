@@ -224,13 +224,12 @@ class SOATProcessor:
                     1: {'x': 954, 'y': 2194},
                     2: {'x': 991, 'y': 2194}
                 },
-                # Positiva (Nueva): el PDF cambió de layout, por lo que las
-                # coordenadas son distintas. Valores iniciales copiados de
-                # 'positiva'; AJUSTAR mirando dónde cae el monto en el PDF nuevo.
+                # Positiva (Nueva): coordenadas medidas sobre el nuevo layout
+                # (imagen final 1694x3300). El monto "S/. __" cae en x~940, y~1860.
                 'positiva_nueva': {
-                    0: {'x': 918, 'y': 2194},
-                    1: {'x': 954, 'y': 2194},
-                    2: {'x': 991, 'y': 2194}
+                    0: {'x': 940, 'y': 1860},
+                    1: {'x': 976, 'y': 1860},
+                    2: {'x': 1012, 'y': 1860}
                 }
             }
             
@@ -540,8 +539,8 @@ class SOATProcessor:
             posiciones_sin_monto = {
                 'protecta': {'x': 938, 'y': 1772},
                 'positiva': {'x': 824, 'y': 2116},
-                # Positiva (Nueva): AJUSTAR a la posición del nuevo PDF.
-                'positiva_nueva': {'x': 824, 'y': 2116}
+                # Positiva (Nueva): bloque blanco sobre el "S/. __" del nuevo layout.
+                'positiva_nueva': {'x': 880, 'y': 1850}
             }
             
             x_posicion = posiciones_sin_monto[tipo_soat]['x']
@@ -610,10 +609,10 @@ class SOATProcessor:
                     {'x1': 83, 'y1': 2005, 'x2': 316, 'y2': 2071, 'descripcion': 'Región principal Positiva'},
                     {'x1': 59, 'y1': 1992, 'x2': 341, 'y2': 2087, 'descripcion': 'Región extendida Positiva'}
                 ],
-                # Positiva (Nueva): AJUSTAR a la zona de la placa del nuevo PDF.
+                # Positiva (Nueva): placa "D0A250" medida en x~48-210, y~1705-1748.
                 'positiva_nueva': [
-                    {'x1': 83, 'y1': 2005, 'x2': 316, 'y2': 2071, 'descripcion': 'Región principal Positiva Nueva'},
-                    {'x1': 59, 'y1': 1992, 'x2': 341, 'y2': 2087, 'descripcion': 'Región extendida Positiva Nueva'}
+                    {'x1': 40, 'y1': 1698, 'x2': 225, 'y2': 1758, 'descripcion': 'Región principal Positiva Nueva'},
+                    {'x1': 28, 'y1': 1688, 'x2': 250, 'y2': 1770, 'descripcion': 'Región extendida Positiva Nueva'}
                 ]
             }
             
